@@ -1,0 +1,23 @@
+wait = 500
+vars = { "shell" = "cmd.exe" }
+
+[hooks]
+cleanup = "{{ shell }} /C 'echo Hook run! && TIMEOUT /T 3'"
+
+[[services]]
+name = "wait-blocking"
+cmd = "{{ shell }} /C 'TIMEOUT /T 5'"
+required = true
+wait = 2000
+
+[[services]]
+name = "should-be-killed"
+cmd = "{{ shell }} /C 'TIMEOUT /T 30'"
+
+[[services]]
+name = "hello-world"
+cmd = "{{ shell }} /C 'echo Hello, world!'"
+
+[[services]]
+name = "good-bye"
+cmd = "{{ shell }} /C 'echo Good bye!'"

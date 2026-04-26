@@ -1,0 +1,23 @@
+wait = 500
+vars = { "shell" = "bash" }
+
+[hooks]
+cleanup = "{{ shell }} -c 'echo Hook run! && sleep 3'"
+
+[[services]]
+name = "wait-blocking"
+cmd = "{{ shell }} -c 'sleep 5'"
+required = true
+wait = 2000
+
+[[services]]
+name = "should-be-killed"
+cmd = "{{ shell }} -c 'sleep 30'"
+
+[[services]]
+name = "hello-world"
+cmd = "{{ shell }} -c 'echo Hello, world!'"
+
+[[services]]
+name = "good-bye"
+cmd = "{{ shell }} -c 'echo Good bye!'"

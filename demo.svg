@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="terminal" baseProfile="full" viewBox="0 0 1040 546" width="1040" version="1.1">
+    <defs>
+        <termtosvg:template_settings xmlns:termtosvg="https://github.com/nbedos/termtosvg">
+            <termtosvg:screen_geometry columns="130" rows="32"/>
+            <termtosvg:animation type="css"/>
+        </termtosvg:template_settings>
+        <style type="text/css" id="generated-style"><![CDATA[#screen {
+                font-family: 'DejaVu Sans Mono', monospace;
+                font-style: normal;
+                font-size: 14px;
+            }
+
+        text {
+            dominant-baseline: text-before-edge;
+            white-space: pre;
+        }
+    
+            :root {
+                --animation-duration: 15517ms;
+            }
+
+            @keyframes roll {
+                0.000%{transform:translateY(0px)}
+6.464%{transform:translateY(-578px)}
+19.366%{transform:translateY(-1156px)}
+22.595%{transform:translateY(-1734px)}
+25.823%{transform:translateY(-2312px)}
+29.052%{transform:translateY(-2890px)}
+41.941%{transform:translateY(-3468px)}
+41.948%{transform:translateY(-4046px)}
+61.313%{transform:translateY(-4624px)}
+61.320%{transform:translateY(-5202px)}
+93.555%{transform:translateY(-5780px)}
+100.000%{transform:translateY(-5780px)}
+            }
+
+            #screen_view {
+                animation-duration: 15517ms;
+                animation-iteration-count:infinite;
+                animation-name:roll;
+                animation-timing-function: steps(1,end);
+                animation-fill-mode: forwards;
+            }
+        ]]></style>
+        <style type="text/css" id="user-style">
+            /* The colors defined below are the default 16 colors used for rendering text of the terminal. Adjust
+               them as needed.
+               PowerShell colors based on https://en.wikipedia.org/wiki/ANSI_escape_code#Colors */
+            .foreground {fill: #cccccc;}
+            .background {fill: #0c0c0c;}
+            .color0 {fill: #0c0c0c;}
+            .color1 {fill: #c50f1f;}
+            .color2 {fill: #13a10e;}
+            .color3 {fill: #c19c00;}
+            .color4 {fill: #0037da;}
+            .color5 {fill: #881798;}
+            .color6 {fill: #3a96dd;}
+            .color7 {fill: #cccccc;}
+            .color8 {fill: #767676;}
+            .color9 {fill: #e74856;}
+            .color10 {fill: #16c60c;}
+            .color11 {fill: #f9f1a5;}
+            .color12 {fill: #3b78ff;}
+            .color13 {fill: #b4009e;}
+            .color14 {fill: #61d6d6;}
+            .color15 {fill: #f2f2f2;}
+        </style>
+    </defs>
+    <svg id="screen" width="1040" height="544" viewBox="0 0 1040 544" preserveAspectRatio="xMidYMin slice">
+    <rect class="background" height="100%" width="100%" x="0" y="0"/><defs><g id="g1"><text x="0" textLength="112" class="foreground">$ local-runner</text></g><g id="g2"><text x="0" textLength="8" class="background"> </text></g><g id="g3"><text x="0" textLength="304" class="foreground">Loading config from ./services.toml...</text></g><g id="g4"><text x="0" textLength="184" class="foreground">Writing log files to ./</text></g><g id="g5"><text x="0" textLength="160" class="foreground">Starting services...</text></g><g id="g6"><text x="0" textLength="272" class="foreground">Press Ctrl+C to kill all processes</text></g><g id="g7"><text x="0" textLength="224" class="foreground"> &gt;&gt;&gt; wait-blocking: starting</text></g><g id="g8"><text x="0" textLength="248" class="foreground"> &gt;&gt;&gt; should-be-killed: starting</text></g><g id="g9"><text x="0" textLength="208" class="foreground"> &gt;&gt;&gt; hello-world: starting</text></g><g id="g10"><text x="0" textLength="184" class="foreground"> &gt;&gt;&gt; good-bye: starting</text></g><g id="g11"><text x="0" textLength="176" class="foreground">Monitoring services...</text></g><g id="g12"><text x="0" textLength="328" class="foreground"> &gt;&gt;&gt; hello-world: exited (exit status: 0)</text></g><g id="g13"><text x="0" textLength="304" class="foreground"> &gt;&gt;&gt; good-bye: exited (exit status: 0)</text></g><g id="g14"><text x="0" textLength="344" class="foreground"> &gt;&gt;&gt; wait-blocking: exited (exit status: 0)</text></g><g id="g15"><text x="0" textLength="432" class="foreground"> &gt;&gt;&gt; FATAL: required process 'wait-blocking' exited...</text></g><g id="g16"><text x="0" textLength="152" class="foreground">Killing services...</text></g><g id="g17"><text x="0" textLength="408" class="foreground"> &gt;&gt;&gt; should-be-killed: killed (signal: 9 (SIGKILL))</text></g><g id="g18"><text x="0" textLength="472" class="foreground">Running 'cleanup' hook: bash -c 'echo Hook run! &amp;&amp; sleep 3'</text></g><g id="g19"><text x="0" textLength="264" class="foreground"> &gt;&gt;&gt; Hook exited (exit status: 0)</text></g><g id="g20"><text x="0" textLength="16" class="foreground">$ </text><text x="16" textLength="8" class="background"> </text></g><g id="g21"><text x="0" textLength="48" class="foreground">$ exit</text></g></defs><g id="screen_view"><g><use xlink:href="#g1" y="0"/><rect x="0" y="17" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="17"/></g><g><use xlink:href="#g1" y="578"/><use xlink:href="#g3" y="595"/><use xlink:href="#g4" y="612"/><use xlink:href="#g5" y="629"/><use xlink:href="#g6" y="646"/><use xlink:href="#g7" y="663"/><rect x="0" y="680" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="680"/></g><g><use xlink:href="#g1" y="1156"/><use xlink:href="#g3" y="1173"/><use xlink:href="#g4" y="1190"/><use xlink:href="#g5" y="1207"/><use xlink:href="#g6" y="1224"/><use xlink:href="#g7" y="1241"/><use xlink:href="#g8" y="1258"/><rect x="0" y="1275" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="1275"/></g><g><use xlink:href="#g1" y="1734"/><use xlink:href="#g3" y="1751"/><use xlink:href="#g4" y="1768"/><use xlink:href="#g5" y="1785"/><use xlink:href="#g6" y="1802"/><use xlink:href="#g7" y="1819"/><use xlink:href="#g8" y="1836"/><use xlink:href="#g9" y="1853"/><rect x="0" y="1870" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="1870"/></g><g><use xlink:href="#g1" y="2312"/><use xlink:href="#g3" y="2329"/><use xlink:href="#g4" y="2346"/><use xlink:href="#g5" y="2363"/><use xlink:href="#g6" y="2380"/><use xlink:href="#g7" y="2397"/><use xlink:href="#g8" y="2414"/><use xlink:href="#g9" y="2431"/><use xlink:href="#g10" y="2448"/><rect x="0" y="2465" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="2465"/></g><g><use xlink:href="#g1" y="2890"/><use xlink:href="#g3" y="2907"/><use xlink:href="#g4" y="2924"/><use xlink:href="#g5" y="2941"/><use xlink:href="#g6" y="2958"/><use xlink:href="#g7" y="2975"/><use xlink:href="#g8" y="2992"/><use xlink:href="#g9" y="3009"/><use xlink:href="#g10" y="3026"/><use xlink:href="#g11" y="3043"/><use xlink:href="#g12" y="3060"/><use xlink:href="#g13" y="3077"/><rect x="0" y="3094" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="3094"/></g><g><use xlink:href="#g1" y="3468"/><use xlink:href="#g3" y="3485"/><use xlink:href="#g4" y="3502"/><use xlink:href="#g5" y="3519"/><use xlink:href="#g6" y="3536"/><use xlink:href="#g7" y="3553"/><use xlink:href="#g8" y="3570"/><use xlink:href="#g9" y="3587"/><use xlink:href="#g10" y="3604"/><use xlink:href="#g11" y="3621"/><use xlink:href="#g12" y="3638"/><use xlink:href="#g13" y="3655"/><use xlink:href="#g14" y="3672"/><use xlink:href="#g15" y="3689"/><use xlink:href="#g16" y="3706"/><rect x="0" y="3723" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="3723"/></g><g><use xlink:href="#g1" y="4046"/><use xlink:href="#g3" y="4063"/><use xlink:href="#g4" y="4080"/><use xlink:href="#g5" y="4097"/><use xlink:href="#g6" y="4114"/><use xlink:href="#g7" y="4131"/><use xlink:href="#g8" y="4148"/><use xlink:href="#g9" y="4165"/><use xlink:href="#g10" y="4182"/><use xlink:href="#g11" y="4199"/><use xlink:href="#g12" y="4216"/><use xlink:href="#g13" y="4233"/><use xlink:href="#g14" y="4250"/><use xlink:href="#g15" y="4267"/><use xlink:href="#g16" y="4284"/><use xlink:href="#g17" y="4301"/><use xlink:href="#g18" y="4318"/><rect x="0" y="4335" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="4335"/></g><g><use xlink:href="#g1" y="4624"/><use xlink:href="#g3" y="4641"/><use xlink:href="#g4" y="4658"/><use xlink:href="#g5" y="4675"/><use xlink:href="#g6" y="4692"/><use xlink:href="#g7" y="4709"/><use xlink:href="#g8" y="4726"/><use xlink:href="#g9" y="4743"/><use xlink:href="#g10" y="4760"/><use xlink:href="#g11" y="4777"/><use xlink:href="#g12" y="4794"/><use xlink:href="#g13" y="4811"/><use xlink:href="#g14" y="4828"/><use xlink:href="#g15" y="4845"/><use xlink:href="#g16" y="4862"/><use xlink:href="#g17" y="4879"/><use xlink:href="#g18" y="4896"/><use xlink:href="#g19" y="4913"/><rect x="0" y="4930" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="4930"/></g><g><use xlink:href="#g1" y="5202"/><use xlink:href="#g3" y="5219"/><use xlink:href="#g4" y="5236"/><use xlink:href="#g5" y="5253"/><use xlink:href="#g6" y="5270"/><use xlink:href="#g7" y="5287"/><use xlink:href="#g8" y="5304"/><use xlink:href="#g9" y="5321"/><use xlink:href="#g10" y="5338"/><use xlink:href="#g11" y="5355"/><use xlink:href="#g12" y="5372"/><use xlink:href="#g13" y="5389"/><use xlink:href="#g14" y="5406"/><use xlink:href="#g15" y="5423"/><use xlink:href="#g16" y="5440"/><use xlink:href="#g17" y="5457"/><use xlink:href="#g18" y="5474"/><use xlink:href="#g19" y="5491"/><rect x="16" y="5508" width="8" height="17" class="foreground"/><use xlink:href="#g20" y="5508"/></g><g><use xlink:href="#g1" y="5780"/><use xlink:href="#g3" y="5797"/><use xlink:href="#g4" y="5814"/><use xlink:href="#g5" y="5831"/><use xlink:href="#g6" y="5848"/><use xlink:href="#g7" y="5865"/><use xlink:href="#g8" y="5882"/><use xlink:href="#g9" y="5899"/><use xlink:href="#g10" y="5916"/><use xlink:href="#g11" y="5933"/><use xlink:href="#g12" y="5950"/><use xlink:href="#g13" y="5967"/><use xlink:href="#g14" y="5984"/><use xlink:href="#g15" y="6001"/><use xlink:href="#g16" y="6018"/><use xlink:href="#g17" y="6035"/><use xlink:href="#g18" y="6052"/><use xlink:href="#g19" y="6069"/><use xlink:href="#g21" y="6086"/><rect x="0" y="6103" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="6103"/></g></g></svg>
+</svg>
