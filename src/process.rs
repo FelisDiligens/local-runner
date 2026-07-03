@@ -169,6 +169,10 @@ pub fn start_services(
     println!("Press Ctrl+C to kill all processes");
 
     for service in &config.services {
+        if !service.enabled.unwrap_or(true) {
+            println!(" >>> {}: skipped (disabled)", service.name);
+            continue;
+        }
         println!(" >>> {}: starting", service.name);
         match Process::new(service).log_path(log_path).spawn(config) {
             Ok(process) => processes.push(process),

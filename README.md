@@ -103,6 +103,7 @@ create_window = true  # Windows-only: Show output in a new console (optional)
 [[services]]
 name = "good-bye"
 cmd = ["{{ shell }}", "-c", "echo Good bye!"]  # Commands can be lists
+enabled = false # Disable a service (enabled by default)
 ```
 
 ### Configuration Details

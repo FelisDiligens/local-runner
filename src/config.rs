@@ -98,6 +98,8 @@ pub struct Service {
     pub wait: Option<u64>,
     /// (Windows only) The new process has a new console, instead of inheriting its parent's console
     pub create_window: Option<bool>,
+    /// If false, skips starting this service (defaults to true)
+    pub enabled: Option<bool>,
 }
 
 pub fn load_config(config_path: &str) -> Result<Config, ConfigError> {
