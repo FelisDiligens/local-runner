@@ -105,7 +105,7 @@ pub struct Service {
 }
 
 pub fn load_config(config_path: &str) -> Result<Config, ConfigError> {
-    println!("Loading config from {}...", config_path);
+    log::info!("Loading config from {}...", config_path);
     let raw_toml = fs::read_to_string(config_path)?;
     let config: Config = toml::from_str(&raw_toml)?;
     Ok(config)

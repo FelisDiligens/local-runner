@@ -4,6 +4,7 @@ use std::io;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use colored::Colorize;
 use regex::{Captures, Regex};
 
 /// SIGINT (Ctrl+C) is sent to all processes in the "foreground group".  
@@ -73,6 +74,23 @@ pub fn register_ctrlc_handler() -> Arc<AtomicBool> {
     .expect("Error setting Ctrl+C handler");
 
     ctrl_c_pressed
+}
+
+pub fn setup_stdout_logger() -> Result<(), fern::InitError> {
+    fern::Dispatch::new()
+        .format(move |out, message, record| {
+            let message = match record.level() {
+                log::Level::Error => message.to_string().red(),
+                log::Level::Warn => message.to_string().yellow(),
+                log::Level::Info => message.to_string().into(),
+                log::Level::Debug => message.to_string().white(),
+                log::Level::Trace => message.to_string().white(),
+            };
+            out.finish(format_args!("{}", message))
+        })
+        .chain(std::io::stdout())
+        .apply()?;
+    Ok(())
 }
 
 /// Expands environment variables in given string like in a Unix shell.

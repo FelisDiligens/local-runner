@@ -65,14 +65,14 @@ impl Process {
 
         let create_window = self.service.create_window.unwrap_or(false);
         if cfg!(not(windows)) && create_window {
-            println!(
-                " >>> WARNING: create_window doesn't have an effect on platforms other than Windows!"
+            log::warn!(
+                " >>> create_window doesn't have an effect on platforms other than Windows!"
             );
         }
 
         if cfg!(windows) && create_window {
-            println!(
-                " >>> INFO: No log file will be written for '{}' (create_window = true)",
+            log::info!(
+                " >>> No log file will be written for '{}' (create_window = true)",
                 self.service.name
             );
 
@@ -125,9 +125,10 @@ impl Process {
             #[cfg(windows)]
             if self.service.create_window.unwrap_or(false) || use_taskkill {
                 for pid in handle.pids() {
-                    println!(
+                    log::info!(
                         " >>> {}: \"kill\" workaround, running: TASKKILL /F /PID {} /T",
-                        self.service.name, pid
+                        self.service.name,
+                        pid
                     );
                     duct::cmd!(
                         "cmd.exe",

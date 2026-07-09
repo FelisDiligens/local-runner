@@ -95,22 +95,22 @@ fn run_loop(
         match receiver.try_recv() {
             Ok(message) => {
                 if let Err(e) = process_message(message, &mut state) {
-                    kill_processes(&mut state.processes, &state.config, &state.args.logs)?;
+                    kill_processes(&mut state)?;
                     return Err(e.into());
                 }
             }
             Err(TryRecvError::Disconnected) => {
-                kill_processes(&mut state.processes, &state.config, &state.args.logs)?;
+                kill_processes(&mut state)?;
                 return Err(WorkerError::Disconnected);
             }
             _ => {}
         }
         if let Err(e) = monitor_processes(&mut state) {
-            kill_processes(&mut state.processes, &state.config, &state.args.logs)?;
+            kill_processes(&mut state)?;
             return Err(e.into());
         }
         if state.stopped.load(Ordering::Relaxed) {
-            kill_processes(&mut state.processes, &state.config, &state.args.logs)?;
+            kill_processes(&mut state)?;
             return Err(WorkerError::ManuallyStopped);
         }
     }
@@ -135,32 +135,26 @@ fn start_services(state: &mut WorkerState) -> Result<(), ProcessError> {
     // Run prepare hook:
     if let Some(hook) = hooks.and_then(|hooks| hooks.prepare.as_ref()) {
         match run_hook("prepare", hook, log_path, config) {
-            Ok(status) => println!(" >>> Hook exited ({})", status),
-            Err(error) => eprintln!(" >>> ERROR: Hook failed! {}", error),
+            Ok(status) => log::info!(" >>> Hook exited ({})", status),
+            Err(error) => log::error!(" >>> Hook failed! {}", error),
         }
     }
 
-    println!("Starting services...");
-    println!("Press Ctrl+C to kill all processes");
+    log::info!("Starting services...");
+    log::info!("Press Ctrl+C to kill all processes");
 
     for service in services {
         if !service.enabled.unwrap_or(true) {
-            println!(" >>> {}: skipped (disabled)", service.name);
+            log::info!(" >>> {}: skipped (disabled)", service.name);
             continue;
         }
-        println!(" >>> {}: starting", service.name);
+        log::info!(" >>> {}: starting", service.name);
         match Process::new(service).log_path(log_path).spawn(config) {
             Ok(process) => processes.push(process),
             Err(error) => {
-                eprintln!(
-                    " >>> ERROR: {} failed to start because {:?}",
-                    service.name, error
-                );
+                log::error!(" >>> {} failed to start because {:?}", service.name, error);
                 if service.required.unwrap_or(false) {
-                    eprintln!(
-                        " >>> FATAL: required process '{}' didn't start",
-                        service.name
-                    );
+                    log::error!(" >>> required process '{}' didn't start", service.name);
                     return Err(ProcessError::RequiredProcessGone);
                 }
             }
@@ -174,7 +168,7 @@ fn start_services(state: &mut WorkerState) -> Result<(), ProcessError> {
         }
     }
 
-    println!("Monitoring services...");
+    log::info!("Monitoring services...");
     Ok(())
 }
 
@@ -204,7 +198,7 @@ fn monitor_processes(state: &mut WorkerState) -> Result<(), ProcessError> {
                 } else {
                     "crashed"
                 };
-                println!(" >>> {}: {} ({})", process.service.name, state, status);
+                log::info!(" >>> {}: {} ({})", process.service.name, state, status);
 
                 let is_required = process.service.required.unwrap_or(false);
                 let has_crashed = !status.success();
@@ -217,16 +211,17 @@ fn monitor_processes(state: &mut WorkerState) -> Result<(), ProcessError> {
                             && (is_required || has_crashed)));
 
                 if should_restart {
-                    println!(" >>> Restarting {}", process.service.name);
+                    log::info!(" >>> Restarting {}", process.service.name);
                     process.restarted = true;
                     if let Err(error) = process.spawn_mut(config) {
-                        eprintln!(
-                            " >>> ERROR: {} failed to restart because {:?}",
-                            process.service.name, error
+                        log::error!(
+                            " >>> {} failed to restart because {:?}",
+                            process.service.name,
+                            error
                         );
                         if is_required {
-                            eprintln!(
-                                " >>> FATAL: required process '{}' didn't restart",
+                            log::error!(
+                                " >>> required process '{}' didn't restart",
                                 process.service.name
                             );
                             return Err(ProcessError::RequiredProcessGone);
@@ -234,15 +229,16 @@ fn monitor_processes(state: &mut WorkerState) -> Result<(), ProcessError> {
                     };
                 } else {
                     if has_restarted_previously {
-                        println!(
+                        log::warn!(
                             " >>> Process '{}' has crashed twice, not restarting",
                             process.service.name
                         );
                     }
                     if is_required {
-                        println!(
-                            " >>> FATAL: required process '{}' {}...",
-                            process.service.name, state
+                        log::error!(
+                            " >>> required process '{}' {}...",
+                            process.service.name,
+                            state
                         );
                         return Err(ProcessError::RequiredProcessGone);
                     }
@@ -271,7 +267,7 @@ fn run_hook(
     }
     .ok_or(ProcessError::CommandParse(hook_name.to_string()))?;
 
-    println!(
+    log::info!(
         "Running '{}' hook: {}",
         hook_name,
         shlex::try_join(cmd.iter().map(|s| s.as_str())).unwrap_or(cmd.join(" ")),
@@ -290,22 +286,23 @@ fn run_hook(
     Ok(output.status)
 }
 
-fn kill_processes(
-    processes: &mut Vec<Process>,
-    config: &Config,
-    log_path: &str,
-) -> Result<(), ProcessError> {
-    println!("Killing services...");
+fn kill_processes(state: &mut WorkerState) -> Result<(), ProcessError> {
+    let processes = &mut state.processes;
+    let config = &state.config;
+    let log_path = &state.args.logs;
+
+    log::info!("Killing services...");
     for process in processes {
         if let ProcessState::Running(ref handle) = process.state {
             match process.kill(config.use_taskkill) {
                 Ok(_) => {
                     let output = handle.wait()?;
-                    println!(" >>> {}: killed ({})", process.service.name, output.status);
+                    log::info!(" >>> {}: killed ({})", process.service.name, output.status);
                 }
-                Err(error) => eprintln!(
+                Err(error) => log::error!(
                     " >>> {}: couldn't kill, error: {}",
-                    process.service.name, error
+                    process.service.name,
+                    error
                 ),
             }
         }
@@ -313,8 +310,8 @@ fn kill_processes(
     // Run cleanup hook:
     if let Some(Some(cleanup_hook)) = config.hooks.as_ref().map(|hooks| hooks.cleanup.as_ref()) {
         match run_hook("cleanup", cleanup_hook, log_path, config) {
-            Ok(status) => println!(" >>> Hook exited ({})", status),
-            Err(error) => eprintln!(" >>> ERROR: Hook failed! {}", error),
+            Ok(status) => log::info!(" >>> Hook exited ({})", status),
+            Err(error) => log::error!(" >>> Hook failed! {}", error),
         }
     }
     Ok(())

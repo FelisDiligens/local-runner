@@ -14,45 +14,48 @@ use std::{env, fs, process::ExitCode};
 
 use clap::Parser;
 
-use crate::utils::register_ctrlc_handler;
+use crate::utils::{register_ctrlc_handler, setup_stdout_logger};
 use crate::{config::Args, worker::Worker};
 use crate::{config::load_config, error::WorkerError};
 use crate::{error::ConfigError, worker::WorkerMessage};
 
 fn main() -> ExitCode {
     let args = Args::parse();
+
+    setup_stdout_logger().unwrap();
+
     let config = match load_config(&args.path) {
         Ok(config) => config,
         Err(ConfigError::IOError(error)) => {
-            eprintln!(" >>> ERROR: Couldn't find/read {}: {}\n", args.path, error);
-            println!("You may want to specify the path to a config file:");
-            println!("$ local-runner --path <PATH>");
+            log::error!(" >>> Couldn't find/read {}: {}\n", args.path, error);
+            log::info!("You may want to specify the path to a config file:");
+            log::info!("$ local-runner --path <PATH>");
             return ExitCode::FAILURE;
         }
         Err(error) => {
-            eprintln!(" >>> ERROR: Couldn't load {}: {}", args.path, error);
+            log::error!(" >>> Couldn't load {}: {}", args.path, error);
             return ExitCode::FAILURE;
         }
     };
 
     if let Some(ref env) = config.env {
-        println!("Setting global environment variables:");
+        log::info!("Setting global environment variables:");
         for (key, val) in env {
             let val = if config.disable_env_interpolation {
                 val.to_string()
             } else {
                 utils::expand_env_vars(val)
             };
-            eprintln!(" >>> {key}={val}");
+            log::info!(" >>> {key}={val}");
             unsafe {
                 env::set_var(key, val);
             };
         }
     }
 
-    println!("Writing log files to {}", args.logs);
+    log::info!("Writing log files to {}", args.logs);
     if fs::create_dir(&args.logs).is_ok() {
-        println!(" >>> Created directory {}", args.logs);
+        log::info!(" >>> Created directory {}", args.logs);
     }
 
     let ctrl_c_pressed = register_ctrlc_handler();
@@ -67,15 +70,15 @@ fn main() -> ExitCode {
     }
     match worker.join() {
         Ok(_) | Err(WorkerError::ManuallyStopped) | Err(WorkerError::AllServicesStopped) => {
-            println!("All services stopped. Good bye!");
+            log::info!("All services stopped. Good bye!");
             ExitCode::SUCCESS
         }
         Err(WorkerError::RequiredProcessGone) => {
-            println!("All services stopped. Required process was gone.");
+            log::info!("All services stopped. Required process was gone.");
             ExitCode::FAILURE
         }
         Err(error) => {
-            eprintln!("ERROR: Unexpected error.");
+            log::error!("Unexpected error.");
             panic!("{:?}", error)
         }
     }
