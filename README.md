@@ -87,7 +87,8 @@ vars = { "shell" = "sh" }
 
 # Hooks (optional)
 [hooks]
-cleanup = "sh -c \"rm -v log-*.txt\""  # Runs after all services exited
+prepare = "cp .env.local .env" # Runs before services are started
+cleanup = "sh -c \"rm .env && rm -v log-*.txt\""  # Runs after all services exited
 
 # Services (executed top-to-bottom)
 [[services]]

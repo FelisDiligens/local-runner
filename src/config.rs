@@ -67,6 +67,8 @@ impl Command {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Hooks {
+    /// runs before services are started
+    pub prepare: Option<Command>,
     /// runs after all services were killed
     pub cleanup: Option<Command>,
 }

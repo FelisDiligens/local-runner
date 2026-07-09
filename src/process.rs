@@ -165,6 +165,14 @@ pub fn start_services(
     log_path: &str,
     ctrl_c_pressed: Arc<AtomicBool>,
 ) -> Result<(), ProcessError> {
+    // Run prepare hook:
+    if let Some(Some(prepare_hook)) = config.hooks.as_ref().map(|hooks| hooks.prepare.as_ref()) {
+        match run_hook("prepare", prepare_hook, log_path, config) {
+            Ok(status) => println!(" >>> Hook exited ({})", status),
+            Err(error) => eprintln!(" >>> ERROR: Hook failed! {}", error),
+        }
+    }
+
     println!("Starting services...");
     println!("Press Ctrl+C to kill all processes");
 
