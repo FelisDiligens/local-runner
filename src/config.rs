@@ -6,7 +6,7 @@ use serde::Deserialize;
 use crate::{error::ConfigError, utils};
 
 /// Run multiple services from a TOML file.
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
 pub struct Args {
     /// path to config file with services to run
@@ -17,7 +17,7 @@ pub struct Args {
     pub logs: String,
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct Config {
     /// Default wait time in milliseconds before starting next process
     pub wait: Option<u64>,

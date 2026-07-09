@@ -2,41 +2,22 @@ mod config;
 mod error;
 mod process;
 mod utils;
+mod worker;
 
 #[cfg(test)]
 mod tests;
 
-use std::{
-    env, fs,
-    process::ExitCode,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-};
+use std::sync::atomic::Ordering;
+use std::thread::sleep;
+use std::time::Duration;
+use std::{env, fs, process::ExitCode};
 
 use clap::Parser;
-use clone_macro::clone;
 
-use crate::config::Args;
-use crate::config::load_config;
-use crate::error::{ConfigError, ProcessError};
-use crate::process::{kill_processes, monitor_processes, start_services, Process};
-
-fn register_ctrlc_handler() -> Arc<AtomicBool> {
-    // Handle Ctrl+C by storing it in a shared boolean:
-    let ctrl_c_pressed = Arc::new(AtomicBool::new(false));
-    ctrlc::set_handler(clone!([ctrl_c_pressed], move || {
-        #[cfg(windows)]
-        println!("^C -- Keyboard interrupt received");
-        #[cfg(not(windows))]
-        println!(" -- Keyboard interrupt received");
-        ctrl_c_pressed.store(true, Ordering::Relaxed);
-    }))
-    .expect("Error setting Ctrl+C handler");
-
-    ctrl_c_pressed
-}
+use crate::utils::register_ctrlc_handler;
+use crate::{config::Args, worker::Worker};
+use crate::{config::load_config, error::WorkerError};
+use crate::{error::ConfigError, worker::WorkerMessage};
 
 fn main() -> ExitCode {
     let args = Args::parse();
@@ -75,18 +56,22 @@ fn main() -> ExitCode {
     }
 
     let ctrl_c_pressed = register_ctrlc_handler();
-    let mut processes: Vec<Process> = Vec::with_capacity(config.services.len());
 
-    match start_services(&mut processes, &config, &args.logs, ctrl_c_pressed.clone())
-        .and_then(|_| monitor_processes(&mut processes, &config, ctrl_c_pressed.clone()))
-    {
-        Ok(_) => ExitCode::SUCCESS,
-        Err(ProcessError::CtrlC) => {
-            kill_processes(&mut processes, &config, &args.logs).unwrap();
+    let mut worker = Worker::spawn(config, args);
+    worker.queue(WorkerMessage::AutostartServices).unwrap();
+    while !worker.is_finished() && !worker.is_stopped() {
+        if ctrl_c_pressed.load(Ordering::Relaxed) {
+            worker.stop();
+        }
+        sleep(Duration::from_millis(1000));
+    }
+    match worker.join() {
+        Ok(_) | Err(WorkerError::ManuallyStopped) | Err(WorkerError::AllServicesStopped) => {
+            println!("All services stopped. Good bye!");
             ExitCode::SUCCESS
         }
-        Err(ProcessError::RequiredProcessGone) => {
-            kill_processes(&mut processes, &config, &args.logs).unwrap();
+        Err(WorkerError::RequiredProcessGone) => {
+            println!("All services stopped. Required process was gone.");
             ExitCode::FAILURE
         }
         Err(error) => {

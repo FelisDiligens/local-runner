@@ -1,21 +1,10 @@
-use std::{
-    path::PathBuf,
-    process::ExitStatus,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    thread::sleep,
-    time::Duration,
-};
+use std::path::PathBuf;
 
 use duct::Handle;
 
-use crate::{
-    config::{Command, Config, Service, ServiceRestartPolicy},
-    error::ProcessError,
-    utils,
-};
+use crate::config::{Config, Service};
+use crate::error::ProcessError;
+use crate::utils;
 
 #[derive(Default)]
 pub enum ProcessState {
@@ -126,7 +115,7 @@ impl Process {
     }
 
     #[allow(unused_variables)]
-    fn kill(&self, use_taskkill: bool) -> Result<(), ProcessError> {
+    pub fn kill(&self, use_taskkill: bool) -> Result<(), ProcessError> {
         if let ProcessState::Running(ref handle) = self.state {
             // Unfortunately, when creating a new console for the process,
             // killing it using the `kill` method won't actually kill it or
@@ -157,204 +146,4 @@ impl Process {
         }
         Ok(())
     }
-}
-
-pub fn start_services(
-    processes: &mut Vec<Process>,
-    config: &Config,
-    log_path: &str,
-    ctrl_c_pressed: Arc<AtomicBool>,
-) -> Result<(), ProcessError> {
-    // Run prepare hook:
-    if let Some(Some(prepare_hook)) = config.hooks.as_ref().map(|hooks| hooks.prepare.as_ref()) {
-        match run_hook("prepare", prepare_hook, log_path, config) {
-            Ok(status) => println!(" >>> Hook exited ({})", status),
-            Err(error) => eprintln!(" >>> ERROR: Hook failed! {}", error),
-        }
-    }
-
-    println!("Starting services...");
-    println!("Press Ctrl+C to kill all processes");
-
-    for service in &config.services {
-        if !service.enabled.unwrap_or(true) {
-            println!(" >>> {}: skipped (disabled)", service.name);
-            continue;
-        }
-        println!(" >>> {}: starting", service.name);
-        match Process::new(service).log_path(log_path).spawn(config) {
-            Ok(process) => processes.push(process),
-            Err(error) => {
-                eprintln!(
-                    " >>> ERROR: {} failed to start because {:?}",
-                    service.name, error
-                );
-                if service.required.unwrap_or(false) {
-                    eprintln!(
-                        " >>> FATAL: required process '{}' didn't start",
-                        service.name
-                    );
-                    return Err(ProcessError::RequiredProcessGone);
-                }
-            }
-        };
-
-        if let Some(milliseconds) = service.wait.or(config.wait) {
-            sleep(Duration::from_millis(milliseconds));
-        }
-        if ctrl_c_pressed.load(Ordering::Relaxed) {
-            return Err(ProcessError::CtrlC);
-        }
-    }
-    Ok(())
-}
-
-pub fn monitor_processes(
-    processes: &mut Vec<Process>,
-    config: &Config,
-    ctrl_c_pressed: Arc<AtomicBool>,
-) -> Result<(), ProcessError> {
-    println!("Monitoring services...");
-    loop {
-        // Keep track of processes that are still running.
-        let mut alive = 0;
-
-        // Check each still running process:
-        for process in &mut *processes {
-            let ProcessState::Running(ref handle) = process.state else {
-                continue;
-            };
-
-            match handle.try_wait()? {
-                None => {
-                    alive += 1;
-                }
-                Some(output) => {
-                    let status = output.status;
-                    process.state = ProcessState::Exited;
-
-                    let state = if status.success() {
-                        "exited"
-                    } else {
-                        "crashed"
-                    };
-                    println!(" >>> {}: {} ({})", process.service.name, state, status);
-
-                    let is_required = process.service.required.unwrap_or(false);
-                    let has_crashed = !status.success();
-                    let restart_policy = process.service.restart.clone().unwrap_or_default();
-                    let has_restarted_previously = process.restarted;
-
-                    let should_restart = !has_restarted_previously
-                        && (restart_policy == ServiceRestartPolicy::Always
-                            || (restart_policy == ServiceRestartPolicy::OnFailure
-                                && (is_required || has_crashed)));
-
-                    if should_restart {
-                        println!(" >>> Restarting {}", process.service.name);
-                        process.restarted = true;
-                        if let Err(error) = process.spawn_mut(config) {
-                            eprintln!(
-                                " >>> ERROR: {} failed to restart because {:?}",
-                                process.service.name, error
-                            );
-                            if is_required {
-                                eprintln!(
-                                    " >>> FATAL: required process '{}' didn't restart",
-                                    process.service.name
-                                );
-                                return Err(ProcessError::RequiredProcessGone);
-                            }
-                        };
-                    } else {
-                        if has_restarted_previously {
-                            println!(
-                                " >>> Process '{}' has crashed twice, not restarting",
-                                process.service.name
-                            );
-                        }
-                        if is_required {
-                            println!(
-                                " >>> FATAL: required process '{}' {}...",
-                                process.service.name, state
-                            );
-                            return Err(ProcessError::RequiredProcessGone);
-                        }
-                    }
-                }
-            }
-        }
-        if alive == 0 {
-            break;
-        }
-        sleep(Duration::from_millis(1000));
-        if ctrl_c_pressed.load(Ordering::Relaxed) {
-            return Err(ProcessError::CtrlC);
-        }
-    }
-    Ok(())
-}
-
-pub fn run_hook(
-    hook_name: &str,
-    hook: &Command,
-    log_path: &str,
-    config: &Config,
-) -> Result<ExitStatus, ProcessError> {
-    let cmd = if let Some(ref vars) = config.vars
-        && !config.disable_var_substitution
-    {
-        hook.parse_with_subst(vars)
-    } else {
-        hook.parse()
-    }
-    .ok_or(ProcessError::CommandParse(hook_name.to_string()))?;
-
-    println!(
-        "Running '{}' hook: {}",
-        hook_name,
-        shlex::try_join(cmd.iter().map(|s| s.as_str())).unwrap_or(cmd.join(" ")),
-    );
-
-    let program = cmd[0].as_str();
-    let args = &cmd[1..];
-
-    let log_file = PathBuf::from(log_path).join(format!("log-{}-hook.txt", hook_name));
-
-    let output = duct::cmd(program, args)
-        .stderr_to_stdout()
-        .stdout_path(log_file)
-        .run()?;
-
-    Ok(output.status)
-}
-
-pub fn kill_processes(
-    processes: &mut Vec<Process>,
-    config: &Config,
-    log_path: &str,
-) -> Result<(), ProcessError> {
-    println!("Killing services...");
-    for process in processes {
-        if let ProcessState::Running(ref handle) = process.state {
-            match process.kill(config.use_taskkill) {
-                Ok(_) => {
-                    let output = handle.wait()?;
-                    println!(" >>> {}: killed ({})", process.service.name, output.status);
-                }
-                Err(error) => eprintln!(
-                    " >>> {}: couldn't kill, error: {}",
-                    process.service.name, error
-                ),
-            }
-        }
-    }
-    // Run cleanup hook:
-    if let Some(Some(cleanup_hook)) = config.hooks.as_ref().map(|hooks| hooks.cleanup.as_ref()) {
-        match run_hook("cleanup", cleanup_hook, log_path, config) {
-            Ok(status) => println!(" >>> Hook exited ({})", status),
-            Err(error) => eprintln!(" >>> ERROR: Hook failed! {}", error),
-        }
-    }
-    Ok(())
 }

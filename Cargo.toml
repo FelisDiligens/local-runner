@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.5.35", features = ["derive"] }
-clone-macro = "0.1.0"
 ctrlc = "3.4.6"
 duct = "0.13.7"
 regex = "1.11.1"

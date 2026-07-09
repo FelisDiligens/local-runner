@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::env;
 use std::io;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use regex::{Captures, Regex};
 
@@ -53,6 +55,24 @@ pub fn create_new_console(cmd: &mut std::process::Command) -> Result<(), io::Err
     {
         unimplemented!("create_new_console is not implemented for this OS!");
     }
+}
+
+pub fn register_ctrlc_handler() -> Arc<AtomicBool> {
+    // Handle Ctrl+C by storing it in a shared boolean:
+    let ctrl_c_pressed = Arc::new(AtomicBool::new(false));
+    ctrlc::set_handler({
+        let ctrl_c_pressed = ctrl_c_pressed.clone();
+        move || {
+            #[cfg(windows)]
+            println!("^C");
+            #[cfg(not(windows))]
+            println!();
+            ctrl_c_pressed.store(true, Ordering::Relaxed);
+        }
+    })
+    .expect("Error setting Ctrl+C handler");
+
+    ctrl_c_pressed
 }
 
 /// Expands environment variables in given string like in a Unix shell.
