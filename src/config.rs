@@ -22,6 +22,8 @@ pub enum CommandArgs {
         /// Name of the service to stop
         service: String,
     },
+    /// Prints status of running/exited services (if daemon is running)
+    Status,
     /// Stops all running services (if daemon is running)
     Shutdown,
 }

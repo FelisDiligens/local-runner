@@ -16,6 +16,7 @@ pub enum WorkerMessage {
     AutostartServices,
     StartService(String),
     StopService(String),
+    PrintStatus,
 }
 
 pub type WorkerResult<T> = Result<T, WorkerError>;
@@ -124,6 +125,10 @@ fn process_message(message: WorkerMessage, state: &mut WorkerState) -> Result<()
         WorkerMessage::AutostartServices => start_services(state),
         WorkerMessage::StartService(service) => start_service(state, service),
         WorkerMessage::StopService(service) => stop_service(state, service),
+        WorkerMessage::PrintStatus => {
+            print_status(state);
+            Ok(())
+        }
     }
 }
 
@@ -374,6 +379,46 @@ fn stop_service(state: &mut WorkerState, service_name: String) -> Result<(), Pro
 
     log::error!(" >>> Service not found in process list");
     Ok(())
+}
+
+fn print_status(state: &mut WorkerState) {
+    let mut running = 0;
+    let mut exited = 0;
+    log::info!("Current status:");
+    for service in state.config.services.iter() {
+        let mut process_state;
+        match service.state {
+            Some(ServiceState::Enabled) | None => process_state = "not running",
+            Some(ServiceState::Disabled) => process_state = "not running (disabled)",
+            Some(ServiceState::Masked) => process_state = "not running (masked)",
+        }
+        for process in state.processes.iter() {
+            if service.name == process.service.name {
+                match process.state {
+                    ProcessState::Running(_) => {
+                        if process.restarted {
+                            process_state = "running (was restarted)";
+                        } else {
+                            process_state = "running";
+                        }
+                        running += 1;
+                    }
+                    ProcessState::Exited => {
+                        process_state = "exited";
+                        exited += 1;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        log::info!(" >>> {}: {}", service.name, process_state);
+    }
+    log::info!(
+        " >>> {} running, {} exited, {} total",
+        running,
+        exited,
+        state.config.services.len()
+    );
 }
 
 fn kill_processes(state: &mut WorkerState) -> Result<(), ProcessError> {

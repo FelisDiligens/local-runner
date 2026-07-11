@@ -63,6 +63,7 @@ Commands:
   restart   Restart a specified service from the config file (if daemon is running)
   start     Start a specified service from the config file (if daemon is running)
   stop      Stop a specified service from the config file (if daemon is running)
+  status    Prints status of running/exited services (if daemon is running)
   shutdown  Stops all running services (if daemon is running)
   help      Print this message or the help of the given subcommand(s)
 

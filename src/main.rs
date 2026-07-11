@@ -33,6 +33,7 @@ fn process_command(args: &Args, command: &CommandArgs) -> ExitCode {
         CommandArgs::Restart { service } => format!("restart {service}"),
         CommandArgs::Start { service } => format!("start {service}"),
         CommandArgs::Stop { service } => format!("stop {service}"),
+        CommandArgs::Status => format!("status _"),
         CommandArgs::Shutdown => format!("shutdown _"),
     };
     match ipc::write_message(message, &args.path) {
@@ -128,6 +129,10 @@ fn main() -> ExitCode {
                             worker
                                 .queue(WorkerMessage::StopService(service.to_string()))
                                 .unwrap();
+                        }
+                        "status" => {
+                            log::trace!("IPC: Printing status scheduled");
+                            worker.queue(WorkerMessage::PrintStatus).unwrap();
                         }
                         "shutdown" => {
                             log::trace!("IPC: Shutting down scheduled");
