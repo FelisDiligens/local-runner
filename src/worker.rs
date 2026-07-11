@@ -163,6 +163,22 @@ fn start_services(state: &mut WorkerState) -> Result<(), ProcessError> {
                 continue;
             }
         }
+
+        if let Some(ref cond) = service.cond {
+            match run_condition(&service.name, cond, log_path, config) {
+                Ok(status) => {
+                    if !status.success() {
+                        log::warn!(" >>> {}: condition returned non-zero exit code ({})", service.name, status);
+                        continue;
+                    }
+                },
+                Err(error) =>{
+                     log::error!(" >>> {}: condition failed to run: {}", service.name, error);
+                     continue;
+                }
+            }
+        }
+
         log::info!(" >>> {}: starting", service.name);
         match Process::new(service).log_path(log_path).spawn(config) {
             Ok(process) => processes.push(process),
@@ -296,6 +312,36 @@ fn run_hook(
     let output = duct::cmd(program, args)
         .stderr_to_stdout()
         .stdout_path(log_file)
+        .unchecked()
+        .run()?;
+
+    Ok(output.status)
+}
+
+pub fn run_condition(
+    service_name: &str,
+    condition: &Command,
+    log_path: &str,
+    config: &Config
+) -> Result<ExitStatus, ProcessError> {
+    let cmd = if let Some(ref vars) = config.vars
+        && !config.disable_var_substitution
+    {
+        condition.parse_with_subst(vars)
+    } else {
+        condition.parse()
+    }
+    .ok_or(ProcessError::CommandParse(service_name.to_string()))?;
+
+    let program = cmd[0].as_str();
+    let args = &cmd[1..];
+
+    let log_file = PathBuf::from(log_path).join(format!("log-{}-condition.txt", service_name));
+
+    let output = duct::cmd(program, args)
+        .stderr_to_stdout()
+        .stdout_path(log_file)
+        .unchecked()
         .run()?;
 
     Ok(output.status)

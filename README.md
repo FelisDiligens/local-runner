@@ -104,6 +104,7 @@ cleanup = "sh -c \"rm .env && rm -v log-*.txt\""  # Runs after all services exit
 name = "hello-world"
 cmd = "{{ shell }} -c 'echo Hello, world!'"
 pwd = "./"  # Working directory (optional)
+cond = "command -v {{ shell }}" # Don't run service if condition returns non-zero exit code (optional)
 env = { "NO_COLOR" = "1", "PATH" = "/usr/local/bin:$PATH" }  # Service-specific env (optional)
 required = true  # Kill other processes if this crashes (optional)
 restart = "on-failure"  # Restart policy: "no", "on-failure", or "always" (optional)

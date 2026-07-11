@@ -124,6 +124,8 @@ pub struct Service {
     pub cmd: Command,
     /// The working directory of the invoked command, defaults to pwd of service runner
     pub pwd: Option<String>,
+    /// A command whose exit code determines whether the service is started or not
+    pub cond: Option<Command>,
     /// Additional environment variables to set for the invoked process
     pub env: Option<HashMap<String, String>>,
     /// Kill other processes when this process crashes
