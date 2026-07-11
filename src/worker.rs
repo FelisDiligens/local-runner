@@ -14,8 +14,8 @@ use crate::process::{Process, ProcessState};
 #[derive(Debug)]
 pub enum WorkerMessage {
     AutostartServices,
-    // StartService(String),
-    // StopService(String),
+    StartService(String),
+    StopService(String),
 }
 
 pub type WorkerResult<T> = Result<T, WorkerError>;
@@ -53,7 +53,10 @@ impl Worker {
         if let Some(handle) = self.handle.take() {
             match handle.join() {
                 Ok(value) => value,
-                Err(e) => panic::resume_unwind(e),
+                Err(e) => {
+                    log::error!("Unexpected error, worker thread died.");
+                    panic::resume_unwind(e)
+                }
             }
         } else {
             Ok(())
@@ -119,8 +122,8 @@ fn run_loop(
 fn process_message(message: WorkerMessage, state: &mut WorkerState) -> Result<(), ProcessError> {
     match message {
         WorkerMessage::AutostartServices => start_services(state),
-        // WorkerMessage::StartService(_) => todo!(),
-        // WorkerMessage::StopService(_) => todo!(),
+        WorkerMessage::StartService(service) => start_service(state, service),
+        WorkerMessage::StopService(service) => stop_service(state, service),
     }
 }
 
@@ -286,6 +289,76 @@ fn run_hook(
     Ok(output.status)
 }
 
+fn start_service(state: &mut WorkerState, service_name: String) -> Result<(), ProcessError> {
+    let processes = &mut state.processes;
+    let config = &state.config;
+    let services = &config.services;
+    let log_path = &state.args.logs;
+
+    log::info!("Starting service '{service_name}'...");
+    for process in processes.iter_mut() {
+        if process.service.name == service_name {
+            if let ProcessState::Running(_) = process.state {
+                log::info!(" >>> Process already running");
+            } else {
+                if let Err(error) = process.spawn_mut(config) {
+                    log::error!(" >>> Process failed to restart because {error:?}",);
+                };
+            }
+            return Ok(());
+        }
+    }
+
+    for service in services {
+        if service.name == service_name {
+            match Process::new(service).log_path(log_path).spawn(config) {
+                Ok(process) => processes.push(process),
+                Err(error) => {
+                    log::error!(" >>> Process failed to start because {:?}", error);
+                }
+            };
+            return Ok(());
+        }
+    }
+
+    log::error!(" >>> Service not found in config file");
+    Ok(())
+}
+
+fn stop_service(state: &mut WorkerState, service_name: String) -> Result<(), ProcessError> {
+    let processes = &mut state.processes;
+    let config = &state.config;
+
+    log::info!("Stopping service '{service_name}'...");
+    for process in processes {
+        if process.service.name == service_name {
+            if let ProcessState::Running(ref handle) = process.state {
+                let is_required = process.service.required.unwrap_or(false);
+                match process.kill(config.use_taskkill) {
+                    Ok(_) => {
+                        let output = handle.wait()?;
+                        log::info!(" >>> killed ({})", output.status);
+                    }
+                    Err(error) => {
+                        log::error!(" >>> couldn't kill, error: {}", error)
+                    }
+                }
+                if is_required {
+                    log::warn!(" >>> this process was marked as required!");
+                }
+            } else {
+                log::info!(" >>> Service was not running");
+                return Ok(());
+            }
+            process.state = ProcessState::Exited;
+            return Ok(());
+        }
+    }
+
+    log::error!(" >>> Service not found in process list");
+    Ok(())
+}
+
 fn kill_processes(state: &mut WorkerState) -> Result<(), ProcessError> {
     let processes = &mut state.processes;
     let config = &state.config;
@@ -305,7 +378,10 @@ fn kill_processes(state: &mut WorkerState) -> Result<(), ProcessError> {
                     error
                 ),
             }
+        } else {
+            continue;
         }
+        process.state = ProcessState::Exited;
     }
     // Run cleanup hook:
     if let Some(Some(cleanup_hook)) = config.hooks.as_ref().map(|hooks| hooks.cleanup.as_ref()) {

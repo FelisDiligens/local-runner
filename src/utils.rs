@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::env;
-use std::io;
+use std::fs;
+use std::io::{self, Write};
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -163,4 +165,16 @@ pub fn substitute_global_vars(s: &str, vars: &HashMap<String, String>) -> String
     });
 
     s.to_string()
+}
+
+/// Writes the string to a file, creating one if it doesn't exist yet.
+/// This is a convenience function for using `OpenOptions::open` and `write!`.
+pub fn write_to_file<P: AsRef<Path>, S: AsRef<str>>(path: P, content: S) -> io::Result<()> {
+    let file = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)?;
+    write!(&file, "{}", content.as_ref())?;
+    Ok(())
 }

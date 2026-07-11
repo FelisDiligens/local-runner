@@ -1,9 +1,30 @@
 use std::{collections::HashMap, fs};
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use serde::Deserialize;
 
 use crate::{error::ConfigError, utils};
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum CommandArgs {
+    /// Restart a specified service from the config file (if daemon is running)
+    Restart {
+        /// Name of the service to restart
+        service: String,
+    },
+    /// Start a specified service from the config file (if daemon is running)
+    Start {
+        /// Name of the service to start
+        service: String,
+    },
+    /// Stop a specified service from the config file (if daemon is running)
+    Stop {
+        /// Name of the service to stop
+        service: String,
+    },
+    /// Stops all running services (if daemon is running)
+    Shutdown,
+}
 
 /// Run multiple services from a TOML file.
 #[derive(Parser, Debug, Clone)]
@@ -15,6 +36,8 @@ pub struct Args {
     /// path to folder to write log files to
     #[arg(short, long, default_value_t = String::from("./"))]
     pub logs: String,
+    #[command(subcommand)]
+    pub command: Option<CommandArgs>,
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]

@@ -8,6 +8,7 @@ This is useful for local development with multiple dependencies (e.g., web apps,
 ## Features
 - Run services sequentially from a TOML configuration.
 - Monitors and restarts services on exit (configurable with restart policy: "no", "on-failure", or "always").
+- Start, stop, and restart services dynamically while local-runner is already running.
 - Define commands, working directories, environment variables, and more per service.
 - Redirects STDOUT/STDERR to log files named after each service.
 - Supports environment variable interpolation and Jinja2-like variable substitution.
@@ -50,13 +51,20 @@ cargo run -- --path 'path/to/my/services.toml'
 
 ### Command line arguments
 ```txt
-local-runner [--path PATH] [--logs LOGS]
+local-runner [--path PATH] [--logs LOGS] [start|stop|restart SERVICE]
 ```
 
 ```txt
 Run multiple services from a TOML file
 
-Usage: local-runner [OPTIONS]
+Usage: local-runner [OPTIONS] [COMMAND]
+
+Commands:
+  restart   Restart a specified service from the config file (if daemon is running)
+  start     Start a specified service from the config file (if daemon is running)
+  stop      Stop a specified service from the config file (if daemon is running)
+  shutdown  Stops all running services (if daemon is running)
+  help      Print this message or the help of the given subcommand(s)
 
 Options:
   -p, --path <PATH>  path to config file with services to run [default: ./services.toml]

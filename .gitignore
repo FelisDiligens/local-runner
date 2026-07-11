@@ -7,6 +7,7 @@ services*.toml
 
 # Generated files
 log*.txt
+.*.ipc
 
 # Other
 .DS_Store
