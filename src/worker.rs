@@ -7,7 +7,7 @@ use std::sync::mpsc::{self, Receiver, SendError, Sender, TryRecvError};
 use std::thread::{self, JoinHandle, sleep};
 use std::time::Duration;
 
-use crate::config::{Args, Command, Config, ServiceRestartPolicy};
+use crate::config::{Args, Command, Config, ServiceRestartPolicy, ServiceState};
 use crate::error::{ProcessError, WorkerError};
 use crate::process::{Process, ProcessState};
 
@@ -147,9 +147,16 @@ fn start_services(state: &mut WorkerState) -> Result<(), ProcessError> {
     log::info!("Press Ctrl+C to kill all processes");
 
     for service in services {
-        if !service.enabled.unwrap_or(true) {
-            log::info!(" >>> {}: skipped (disabled)", service.name);
-            continue;
+        match service.state.clone().unwrap_or(ServiceState::Enabled) {
+            ServiceState::Enabled => {}
+            ServiceState::Disabled => {
+                log::info!(" >>> {}: skipped (disabled)", service.name);
+                continue;
+            }
+            ServiceState::Masked => {
+                log::info!(" >>> {}: skipped (masked)", service.name);
+                continue;
+            }
         }
         log::info!(" >>> {}: starting", service.name);
         match Process::new(service).log_path(log_path).spawn(config) {
@@ -311,8 +318,18 @@ fn start_service(state: &mut WorkerState, service_name: String) -> Result<(), Pr
 
     for service in services {
         if service.name == service_name {
+            match service.state.clone().unwrap_or(ServiceState::Enabled) {
+                ServiceState::Enabled | ServiceState::Disabled => {}
+                ServiceState::Masked => {
+                    log::error!(" >>> Service is masked, won't start");
+                    return Ok(());
+                }
+            }
             match Process::new(service).log_path(log_path).spawn(config) {
-                Ok(process) => processes.push(process),
+                Ok(process) => {
+                    log::info!(" >>> Service started");
+                    processes.push(process)
+                }
                 Err(error) => {
                     log::error!(" >>> Process failed to start because {:?}", error);
                 }

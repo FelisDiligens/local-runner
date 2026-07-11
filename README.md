@@ -112,7 +112,7 @@ create_window = true  # Windows-only: Show output in a new console (optional)
 [[services]]
 name = "good-bye"
 cmd = ["{{ shell }}", "-c", "echo Good bye!"]  # Commands can be lists
-enabled = false # Disable a service (enabled by default)
+state = "disabled" # Disable a service (enabled by default)
 ```
 
 ### Configuration Details
@@ -135,6 +135,11 @@ enabled = false # Disable a service (enabled by default)
 - `no`: Do not restart (default).
 - `on-failure`: Restart only if the exit code > 0.
 - `always`: Restart regardless of exit code.
+
+#### States
+- `enabled`: Service will autostart (default).
+- `disabled`: Service can be manually started.
+- `masked`: Service cannot be started at all.
 
 #### Windows-Specific Options
 - **`use_taskkill`**: Uses `TASKKILL` to force-kill processes and their children. Enable if processes don't terminate properly.
