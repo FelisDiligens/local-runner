@@ -168,13 +168,17 @@ fn start_services(state: &mut WorkerState) -> Result<(), ProcessError> {
             match run_condition(&service.name, cond, log_path, config) {
                 Ok(status) => {
                     if !status.success() {
-                        log::warn!(" >>> {}: condition returned non-zero exit code ({})", service.name, status);
+                        log::warn!(
+                            " >>> {}: condition returned non-zero exit code ({})",
+                            service.name,
+                            status
+                        );
                         continue;
                     }
-                },
-                Err(error) =>{
-                     log::error!(" >>> {}: condition failed to run: {}", service.name, error);
-                     continue;
+                }
+                Err(error) => {
+                    log::error!(" >>> {}: condition failed to run: {}", service.name, error);
+                    continue;
                 }
             }
         }
@@ -322,7 +326,7 @@ pub fn run_condition(
     service_name: &str,
     condition: &Command,
     log_path: &str,
-    config: &Config
+    config: &Config,
 ) -> Result<ExitStatus, ProcessError> {
     let cmd = if let Some(ref vars) = config.vars
         && !config.disable_var_substitution
@@ -358,11 +362,9 @@ fn start_service(state: &mut WorkerState, service_name: String) -> Result<(), Pr
         if process.service.name == service_name {
             if let ProcessState::Running(_) = process.state {
                 log::info!(" >>> Process already running");
-            } else {
-                if let Err(error) = process.spawn_mut(config) {
-                    log::error!(" >>> Process failed to restart because {error:?}",);
-                };
-            }
+            } else if let Err(error) = process.spawn_mut(config) {
+                log::error!(" >>> Process failed to restart because {error:?}",);
+            };
             return Ok(());
         }
     }
