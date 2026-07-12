@@ -168,6 +168,14 @@ fn main() -> ExitCode {
             log::info!("All services stopped. Required process was gone.");
             ExitCode::FAILURE
         }
+        Err(
+            WorkerError::CyclicDepedencies
+            | WorkerError::MaskedDepedencies
+            | WorkerError::UnknownDependency(_),
+        ) => {
+            log::info!("All services stopped. Couldn't resolve all dependencies.");
+            ExitCode::FAILURE
+        }
         Err(error) => {
             log::error!("Unexpected error.");
             panic!("{:?}", error)

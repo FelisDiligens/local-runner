@@ -24,12 +24,6 @@ pub enum DependencyError {
 pub enum ProcessError {
     #[error(transparent)]
     IOError(#[from] io::Error),
-    #[error("required process is gone")]
-    RequiredProcessGone,
-    #[error("manually stopped such as by keyboard interrupt")]
-    ManuallyStopped,
-    #[error("all services stopped")]
-    AllServicesStopped,
     #[error("command for {0} couldn't be parsed")]
     CommandParse(String),
 }
@@ -44,6 +38,12 @@ pub enum WorkerError {
     ManuallyStopped,
     #[error("all services stopped")]
     AllServicesStopped,
+    #[error("service '{0}' not in list")]
+    UnknownDependency(String),
+    #[error("one or more dependencies are masked")]
+    MaskedDepedencies,
+    #[error("dependencies are cyclic")]
+    CyclicDepedencies,
     #[error("command for {0} couldn't be parsed")]
     CommandParse(String),
     #[error("Message queue disconnected")]
@@ -54,10 +54,17 @@ impl From<ProcessError> for WorkerError {
     fn from(value: ProcessError) -> Self {
         match value {
             ProcessError::IOError(error) => WorkerError::IOError(error),
-            ProcessError::RequiredProcessGone => WorkerError::RequiredProcessGone,
-            ProcessError::ManuallyStopped => WorkerError::ManuallyStopped,
-            ProcessError::AllServicesStopped => WorkerError::AllServicesStopped,
             ProcessError::CommandParse(s) => WorkerError::CommandParse(s),
+        }
+    }
+}
+
+impl From<DependencyError> for WorkerError {
+    fn from(value: DependencyError) -> Self {
+        match value {
+            DependencyError::UnknownDependency(error) => WorkerError::UnknownDependency(error),
+            DependencyError::MaskedDepedencies => WorkerError::MaskedDepedencies,
+            DependencyError::CyclicDepedencies => WorkerError::CyclicDepedencies,
         }
     }
 }

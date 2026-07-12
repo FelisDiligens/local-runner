@@ -10,6 +10,7 @@ This is useful for local development with multiple dependencies (e.g., web apps,
 - Monitors and restarts services on exit (configurable with restart policy: "no", "on-failure", or "always").
 - Start, stop, and restart services dynamically while local-runner is already running.
 - Define commands, working directories, environment variables, and more per service.
+- Resolves dependencies of services when defined and starts them in the correct order.
 - Redirects STDOUT/STDERR to log files named after each service.
 - Supports environment variable interpolation and Jinja2-like variable substitution.
 - Delay the start of subsequent services (e.g. when a service takes longer for initialization)
@@ -110,11 +111,16 @@ required = true  # Kill other processes if this crashes (optional)
 restart = "on-failure"  # Restart policy: "no", "on-failure", or "always" (optional)
 wait = 2000  # Override global wait time (optional)
 create_window = true  # Windows-only: Show output in a new console (optional)
+depends = ["some-dependency"] # Start services that this service depends on first (optional)
 
 [[services]]
 name = "good-bye"
 cmd = ["{{ shell }}", "-c", "echo Good bye!"]  # Commands can be lists
 state = "disabled" # Disable a service (enabled by default)
+
+[[services]]
+name = "some-dependency"
+cmd = ["{{ shell }}", "-c", ":"]
 ```
 
 ### Configuration Details
@@ -142,6 +148,12 @@ state = "disabled" # Disable a service (enabled by default)
 - `enabled`: Service will autostart (default).
 - `disabled`: Service can be manually started.
 - `masked`: Service cannot be started at all.
+
+#### Dependencies
+- The order of the services in the TOML file are respected, except if a service depends on other services. The order will be changed such that it's dependencies are started before it.
+- Services with states `enabled` and `disabled` will be started if another service depends on them.
+- If a service depends on a service which is `masked`, local-runner will abort with an error.
+- Dependencies will also be started when manually starting a service.
 
 #### Windows-Specific Options
 - **`use_taskkill`**: Uses `TASKKILL` to force-kill processes and their children. Enable if processes don't terminate properly.

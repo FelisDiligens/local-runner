@@ -10,6 +10,7 @@ use std::time::Duration;
 use crate::config::{Args, Command, Config, ServiceRestartPolicy, ServiceState};
 use crate::error::{ProcessError, WorkerError};
 use crate::process::{Process, ProcessState};
+use crate::resolver;
 
 #[derive(Debug)]
 pub enum WorkerMessage {
@@ -120,7 +121,7 @@ fn run_loop(
     }
 }
 
-fn process_message(message: WorkerMessage, state: &mut WorkerState) -> Result<(), ProcessError> {
+fn process_message(message: WorkerMessage, state: &mut WorkerState) -> Result<(), WorkerError> {
     match message {
         WorkerMessage::AutostartServices => start_services(state),
         WorkerMessage::StartService(service) => start_service(state, service),
@@ -132,7 +133,7 @@ fn process_message(message: WorkerMessage, state: &mut WorkerState) -> Result<()
     }
 }
 
-fn start_services(state: &mut WorkerState) -> Result<(), ProcessError> {
+fn start_services(state: &mut WorkerState) -> Result<(), WorkerError> {
     let config = &state.config;
     let processes = &mut state.processes;
     let services = &config.services;
@@ -148,18 +149,44 @@ fn start_services(state: &mut WorkerState) -> Result<(), ProcessError> {
         }
     }
 
+    log::info!("Resolving dependencies...");
+    let start_names = services
+        .iter()
+        .filter(|service| {
+            matches!(
+                service.state.clone().unwrap_or_default(),
+                ServiceState::Enabled
+            )
+        })
+        .map(|service| service.name.clone())
+        .collect();
+    let topological_order = match resolver::resolve_dependencies(start_names, services) {
+        Ok(order) => order,
+        Err(e) => {
+            log::error!(" >>> couldn't resolve: {e}");
+            return Err(e.into());
+        }
+    };
+    log::info!(
+        " >>> resolved: {}",
+        topological_order
+            .iter()
+            .map(|service| service.name.clone())
+            .reduce(|acc, s| format!("{acc}, {s}"))
+            .unwrap()
+    );
+
     log::info!("Starting services...");
     log::info!("Press Ctrl+C to kill all processes");
 
-    for service in services {
-        match service.state.clone().unwrap_or(ServiceState::Enabled) {
-            ServiceState::Enabled => {}
-            ServiceState::Disabled => {
-                log::info!(" >>> {}: skipped (disabled)", service.name);
-                continue;
+    for service in topological_order.iter() {
+        match service.state.clone().unwrap_or_default() {
+            ServiceState::Enabled | ServiceState::Disabled => {
+                // disabled services might come from resolved dependencies. start anyways
             }
             ServiceState::Masked => {
-                log::info!(" >>> {}: skipped (masked)", service.name);
+                // masked services should never start
+                log::warn!(" >>> {}: masked", service.name);
                 continue;
             }
         }
@@ -190,7 +217,7 @@ fn start_services(state: &mut WorkerState) -> Result<(), ProcessError> {
                 log::error!(" >>> {} failed to start because {:?}", service.name, error);
                 if service.required.unwrap_or(false) {
                     log::error!(" >>> required process '{}' didn't start", service.name);
-                    return Err(ProcessError::RequiredProcessGone);
+                    return Err(WorkerError::RequiredProcessGone);
                 }
             }
         };
@@ -199,7 +226,7 @@ fn start_services(state: &mut WorkerState) -> Result<(), ProcessError> {
             sleep(Duration::from_millis(milliseconds));
         }
         if stopped.load(Ordering::Relaxed) {
-            return Err(ProcessError::ManuallyStopped);
+            return Err(WorkerError::ManuallyStopped);
         }
     }
 
@@ -207,7 +234,7 @@ fn start_services(state: &mut WorkerState) -> Result<(), ProcessError> {
     Ok(())
 }
 
-fn monitor_processes(state: &mut WorkerState) -> Result<(), ProcessError> {
+fn monitor_processes(state: &mut WorkerState) -> Result<(), WorkerError> {
     let config = &state.config;
     let processes = &mut state.processes;
 
@@ -259,7 +286,7 @@ fn monitor_processes(state: &mut WorkerState) -> Result<(), ProcessError> {
                                 " >>> required process '{}' didn't restart",
                                 process.service.name
                             );
-                            return Err(ProcessError::RequiredProcessGone);
+                            return Err(WorkerError::RequiredProcessGone);
                         }
                     };
                 } else {
@@ -275,14 +302,14 @@ fn monitor_processes(state: &mut WorkerState) -> Result<(), ProcessError> {
                             process.service.name,
                             state
                         );
-                        return Err(ProcessError::RequiredProcessGone);
+                        return Err(WorkerError::RequiredProcessGone);
                     }
                 }
             }
         }
     }
     if alive == 0 {
-        return Err(ProcessError::AllServicesStopped);
+        return Err(WorkerError::AllServicesStopped);
     }
     Ok(())
 }
@@ -351,51 +378,85 @@ pub fn run_condition(
     Ok(output.status)
 }
 
-fn start_service(state: &mut WorkerState, service_name: String) -> Result<(), ProcessError> {
+fn start_service(state: &mut WorkerState, service_name: String) -> Result<(), WorkerError> {
     let processes = &mut state.processes;
     let config = &state.config;
     let services = &config.services;
     let log_path = &state.args.logs;
 
     log::info!("Starting service '{service_name}'...");
-    for process in processes.iter_mut() {
-        if process.service.name == service_name {
-            if let ProcessState::Running(_) = process.state {
-                log::info!(" >>> Process already running");
-            } else if let Err(error) = process.spawn_mut(config) {
-                log::error!(" >>> Process failed to restart because {error:?}",);
-            };
-            return Ok(());
-        }
-    }
-
-    for service in services {
-        if service.name == service_name {
-            match service.state.clone().unwrap_or(ServiceState::Enabled) {
-                ServiceState::Enabled | ServiceState::Disabled => {}
-                ServiceState::Masked => {
-                    log::error!(" >>> Service is masked, won't start");
-                    return Ok(());
-                }
+    log::info!(" >>> Resolving dependencies...");
+    let topological_order =
+        match resolver::resolve_dependencies(vec![service_name.clone()], services) {
+            Ok(order) => order,
+            Err(e) => {
+                log::error!(" >>> couldn't resolve: {e}");
+                return Ok(()); // Do not crash
             }
-            match Process::new(service).log_path(log_path).spawn(config) {
-                Ok(process) => {
-                    log::info!(" >>> Service started");
-                    processes.push(process)
-                }
-                Err(error) => {
-                    log::error!(" >>> Process failed to start because {:?}", error);
-                }
-            };
-            return Ok(());
+        };
+    log::info!(
+        " >>> resolved: {}",
+        topological_order
+            .iter()
+            .map(|service| service.name.clone())
+            .reduce(|acc, s| format!("{acc}, {s}"))
+            .unwrap()
+    );
+
+    for service in topological_order {
+        // Skip masked services:
+        match service.state.clone().unwrap_or_default() {
+            ServiceState::Enabled | ServiceState::Disabled => {}
+            ServiceState::Masked => {
+                log::error!(" >>> {}: masked, won't start", service.name);
+                continue;
+            }
         }
+
+        // Check if service is already running, or needs to be restarted:
+        let mut found = false;
+        for process in processes.iter_mut() {
+            if process.service.name == service.name {
+                if let ProcessState::Running(_) = process.state {
+                    log::info!(" >>> {}: already running", service.name);
+                } else {
+                    match process.spawn_mut(config) {
+                        Ok(_) => {
+                            log::info!(" >>> {}: restarted", service.name);
+                        }
+                        Err(error) => {
+                            log::error!(
+                                " >>> {}: failed to restart because {:?}",
+                                service.name,
+                                error
+                            );
+                        }
+                    }
+                }
+                found = true;
+                break;
+            }
+        }
+        if found {
+            continue;
+        }
+
+        // If service not in process list, create new process:
+        match Process::new(&service).log_path(log_path).spawn(config) {
+            Ok(process) => {
+                log::info!(" >>> {}: started", service.name);
+                processes.push(process)
+            }
+            Err(error) => {
+                log::error!(" >>> {}: failed to start because {:?}", service.name, error);
+            }
+        };
     }
 
-    log::error!(" >>> Service not found in config file");
     Ok(())
 }
 
-fn stop_service(state: &mut WorkerState, service_name: String) -> Result<(), ProcessError> {
+fn stop_service(state: &mut WorkerState, service_name: String) -> Result<(), WorkerError> {
     let processes = &mut state.processes;
     let config = &state.config;
 
