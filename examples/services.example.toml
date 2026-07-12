@@ -1,0 +1,54 @@
+wait = 500
+use_taskkill = true
+
+[vars]
+project_dir = "."
+version = "1.0"
+java_cmd = "java"
+npm_cmd = "npm"
+
+[env]
+JAVA_HOME = "$USERPROFILE\\.jdks\\temurin-21.0.11"
+PATH = "$USERPROFILE\\.jdks\\temurin-21.0.11;$PATH"
+
+[hooks]
+prepare = "powershell.exe {{ project_dir }}\\scripts\\Prepare-Config.ps1"
+cleanup = "powershell.exe {{ project_dir }}\\scripts\\Cleanup-Config.ps1"
+
+[[services]]
+name = "master"
+pwd = "{{ project_dir }}\\master\\target"
+cmd = "{{ java_cmd }} -jar master-{{ version }}.jar"
+state = "disabled"
+restart = "always"
+required = true
+wait = 2000
+
+[[services]]
+name = "backend-service-a"
+pwd = "{{ project_dir }}\\backend-service-a\\target"
+cmd = "{{ java_cmd }} -jar backend-service-a-{{ version }}.jar"
+state = "disabled"
+depends = ["master"]
+
+[[services]]
+name = "backend-service-b"
+pwd = "{{ project_dir }}\\backend-service-b\\target"
+cmd = "{{ java_cmd }} -jar backend-service-b-{{ version }}.jar"
+state = "disabled"
+depends = ["master"]
+
+[[services]]
+name = "backend-service-c"
+pwd = "{{ project_dir }}\\backend-service-c\\target"
+cmd = "{{ java_cmd }} -jar backend-service-c-{{ version }}.jar"
+state = "disabled"
+depends = ["master", "backend-service-b"]
+
+[[services]]
+name = "frontend"
+pwd = "{{ project_dir }}\\frontend"
+cmd = "{{ npm_cmd }} run start"
+cond = "powershell.exe -c 'Test-Path -Path \"{{ project_dir }}\\frontend\\dist\\index.cjs\"'"
+env = { "NODE_ENV" = "development" }
+depends = ["backend-service-a", "backend-service-b", "backend-service-c"]

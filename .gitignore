@@ -2,8 +2,7 @@
 /target
 
 # Config
-services*.toml
-!services.test*.toml
+/services*.toml
 
 # Generated files
 log*.txt
