@@ -150,18 +150,22 @@ cmd = ["{{ shell }}", "-c", ":"]
 - `masked`: Service cannot be started at all.
 
 #### Dependencies
-- The order of the services in the TOML file are respected, except if a service depends on other services. The order will be changed such that it's dependencies are started before it.
-- Services with states `enabled` and `disabled` will be started if another service depends on them.
-- If a service depends on a service which is `masked`, local-runner will abort with an error.
-- Dependencies will also be started when manually starting a service.
+- **Execution Order**: The order of the services in the TOML file are respected, except if a service depends on other services. The order will be changed such that it's dependencies are started before it.
+- **Service State Behavior**: Services with states `enabled` and `disabled` will be started if another service depends on them. If a service depends on a service which is `masked`, local-runner will abort with an error.
+- **Manual Start Behavior**: Dependencies will also be started when manually starting a service.
+- **Stopping Behavior**: When a service exits that was a dependency of another service, that's currently unhandled.
 
-#### Windows-Specific Options
-- **`use_taskkill`**: Uses `TASKKILL` to force-kill processes and their children. Enable if processes don't terminate properly.
-- **`create_window`**: Creates a new console window for the process. No log file is written when enabled.
+#### Conditions
+- **Lifecycle**: Runs before starting the service when starting all services.
+- **Manual Start Behavior**: Condition is ignored when starting a service manually to allow "overriding" it.
 
 #### Hooks
 - **Lifecycle**: Hooks run at specific points (e.g., `cleanup` runs after all services exit).
 - **Format**: Can be a string or a list of arguments (same as `cmd`).
+
+#### Windows-Specific Options
+- **`use_taskkill`**: Uses `TASKKILL` to force-kill processes and their children. Enable if processes don't terminate properly.
+- **`create_window`**: Creates a new console window for the process. No log file is written when enabled.
 
 ---
 
