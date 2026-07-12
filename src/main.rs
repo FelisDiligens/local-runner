@@ -2,6 +2,7 @@ mod config;
 mod error;
 mod ipc;
 mod process;
+mod resolver;
 mod utils;
 mod worker;
 

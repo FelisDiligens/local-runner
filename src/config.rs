@@ -118,7 +118,7 @@ pub enum ServiceState {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Service {
-    /// A pretty name for the service shown in the cli output
+    /// The name of the service shown in the CLI output, also used for the `depends` field
     pub name: String,
     /// A command parsed like in a POSIX shell (using `shlex`)
     pub cmd: Command,
@@ -139,6 +139,8 @@ pub struct Service {
     /// If "disabled", skips starting this service (defaults to "enabled")
     /// If "masked", any attempt at starting this service will fail (e.g. manually starting it)
     pub state: Option<ServiceState>,
+    /// List of services that this service depends on
+    pub depends: Option<Vec<String>>,
 }
 
 pub fn load_config(config_path: &str) -> Result<Config, ConfigError> {

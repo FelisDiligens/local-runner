@@ -11,6 +11,16 @@ pub enum ConfigError {
 }
 
 #[derive(Error, Debug)]
+pub enum DependencyError {
+    #[error("service '{0}' not in list")]
+    UnknownDependency(String),
+    #[error("one or more dependencies are masked")]
+    MaskedDepedencies,
+    #[error("dependencies are cyclic")]
+    CyclicDepedencies,
+}
+
+#[derive(Error, Debug)]
 pub enum ProcessError {
     #[error(transparent)]
     IOError(#[from] io::Error),
