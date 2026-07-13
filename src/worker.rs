@@ -423,6 +423,9 @@ fn start_service(state: &mut WorkerState, service_name: String) -> Result<(), Wo
                     match process.spawn_mut(config) {
                         Ok(_) => {
                             log::info!(" >>> {}: restarted", service.name);
+                            if let Some(milliseconds) = service.wait.or(config.wait) {
+                                sleep(Duration::from_millis(milliseconds));
+                            }
                         }
                         Err(error) => {
                             log::error!(
@@ -445,7 +448,10 @@ fn start_service(state: &mut WorkerState, service_name: String) -> Result<(), Wo
         match Process::new(&service).log_path(log_path).spawn(config) {
             Ok(process) => {
                 log::info!(" >>> {}: started", service.name);
-                processes.push(process)
+                processes.push(process);
+                if let Some(milliseconds) = service.wait.or(config.wait) {
+                    sleep(Duration::from_millis(milliseconds));
+                }
             }
             Err(error) => {
                 log::error!(" >>> {}: failed to start because {:?}", service.name, error);
