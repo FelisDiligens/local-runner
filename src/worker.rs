@@ -16,6 +16,7 @@ use crate::resolver;
 pub enum WorkerMessage {
     AutostartServices,
     StartService(String),
+    StartTag(String),
     StopService(String),
     PrintStatus,
 }
@@ -125,6 +126,7 @@ fn process_message(message: WorkerMessage, state: &mut WorkerState) -> Result<()
     match message {
         WorkerMessage::AutostartServices => start_services(state),
         WorkerMessage::StartService(service) => start_service(state, service),
+        WorkerMessage::StartTag(tag) => start_tag(state, tag),
         WorkerMessage::StopService(service) => stop_service(state, service),
         WorkerMessage::PrintStatus => {
             print_status(state);
@@ -376,6 +378,44 @@ pub fn run_condition(
         .run()?;
 
     Ok(output.status)
+}
+
+fn start_tag(state: &mut WorkerState, tag_name: String) -> Result<(), WorkerError> {
+    let services = &state.config.services;
+
+    log::info!("Starting tag '{tag_name}'...");
+
+    let service_names: Vec<String> = services
+        .iter()
+        .filter_map(|service| {
+            service
+                .tags
+                .as_ref()
+                .map(|tags| (service.name.clone(), tags))
+        })
+        .filter(|(_, tags)| tags.contains(&tag_name))
+        .map(|(service_name, _)| service_name)
+        .collect();
+
+    if service_names.is_empty() {
+        log::warn!(" >>> no services found with matching tag {tag_name}");
+        return Ok(());
+    }
+
+    log::info!(
+        " >>> services found with matching tag {}: {}",
+        tag_name,
+        service_names
+            .iter()
+            .map(|service_name| service_name.clone())
+            .reduce(|acc, s| format!("{acc}, {s}"))
+            .unwrap()
+    );
+
+    for service_name in service_names {
+        start_service(state, service_name)?;
+    }
+    Ok(())
 }
 
 fn start_service(state: &mut WorkerState, service_name: String) -> Result<(), WorkerError> {

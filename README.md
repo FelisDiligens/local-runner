@@ -50,6 +50,14 @@ local-runner --path 'path/to/my/services.toml'
 cargo run -- --path 'path/to/my/services.toml'
 ```
 
+Manually start and stop services either by their name or their tag:
+
+```bash
+local-runner start my-service
+# or by tag:
+local-runner start --tag my-tag
+```
+
 ### Command line arguments
 ```txt
 local-runner [--path PATH] [--logs LOGS] [start|stop|restart SERVICE]
@@ -62,7 +70,7 @@ Usage: local-runner [OPTIONS] [COMMAND]
 
 Commands:
   restart   Restart a specified service from the config file (if daemon is running)
-  start     Start a specified service from the config file (if daemon is running)
+  start     Start a specified service (or multiple via tag) from the config file (if daemon is running)
   stop      Stop a specified service from the config file (if daemon is running)
   status    Prints status of running/exited services (if daemon is running)
   shutdown  Stops all running services (if daemon is running)
@@ -111,6 +119,7 @@ required = true  # Kill other processes if this crashes (optional)
 restart = "on-failure"  # Restart policy: "no", "on-failure", or "always" (optional)
 wait = 2000  # Override global wait time (optional)
 create_window = true  # Windows-only: Show output in a new console (optional)
+tags = ["greetings"] # A list of tags which can be used when manually starting services
 depends = ["some-dependency"] # Start services that this service depends on first (optional)
 
 [[services]]

@@ -12,10 +12,13 @@ pub enum CommandArgs {
         /// Name of the service to restart
         service: String,
     },
-    /// Start a specified service from the config file (if daemon is running)
+    /// Start a specified service (or multiple via tag) from the config file (if daemon is running)
     Start {
-        /// Name of the service to start
-        service: String,
+        /// Whether or not the argument should be interpreted as a tag
+        #[arg(short, long, default_value_t = false)]
+        tag: bool,
+        /// Name of the service or tag to start
+        service_or_tag: String,
     },
     /// Stop a specified service from the config file (if daemon is running)
     Stop {
@@ -139,6 +142,8 @@ pub struct Service {
     /// If "disabled", skips starting this service (defaults to "enabled")
     /// If "masked", any attempt at starting this service will fail (e.g. manually starting it)
     pub state: Option<ServiceState>,
+    /// List of tags that can be used to start multiple related services
+    pub tags: Option<Vec<String>>,
     /// List of services that this service depends on
     pub depends: Option<Vec<String>>,
 }

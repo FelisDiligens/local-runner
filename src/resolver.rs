@@ -154,6 +154,7 @@ fn build_service(name: &str, dependencies: Vec<&str>, state: Option<ServiceState
         wait: None,
         create_window: None,
         state,
+        tags: None,
         depends: if dependencies.is_empty() {
             None
         } else {

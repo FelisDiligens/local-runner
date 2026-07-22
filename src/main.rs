@@ -32,7 +32,16 @@ fn process_command(args: &Args, command: &CommandArgs) -> ExitCode {
     }
     let message = match command {
         CommandArgs::Restart { service } => format!("restart {service}"),
-        CommandArgs::Start { service } => format!("start {service}"),
+        CommandArgs::Start {
+            tag,
+            service_or_tag,
+        } => {
+            if *tag {
+                format!("start @{service_or_tag}")
+            } else {
+                format!("start {service_or_tag}")
+            }
+        }
         CommandArgs::Stop { service } => format!("stop {service}"),
         CommandArgs::Status => "status _".to_string(),
         CommandArgs::Shutdown => "shutdown _".to_string(),
@@ -120,10 +129,16 @@ fn main() -> ExitCode {
                                 .unwrap();
                         }
                         "start" => {
-                            log::trace!("IPC: Starting service {service} scheduled");
-                            worker
-                                .queue(WorkerMessage::StartService(service.to_string()))
-                                .unwrap();
+                            if service.starts_with("@") {
+                                let tag_name = service.trim_start_matches("@").to_string();
+                                log::trace!("IPC: Starting tag {tag_name} scheduled");
+                                worker.queue(WorkerMessage::StartTag(tag_name)).unwrap();
+                            } else {
+                                log::trace!("IPC: Starting service {service} scheduled");
+                                worker
+                                    .queue(WorkerMessage::StartService(service.to_string()))
+                                    .unwrap();
+                            }
                         }
                         "stop" => {
                             log::trace!("IPC: Stopping service {service} scheduled");
