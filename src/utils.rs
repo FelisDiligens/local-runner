@@ -6,7 +6,6 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use colored::Colorize;
 use regex::{Captures, Regex};
 
 /// SIGINT (Ctrl+C) is sent to all processes in the "foreground group".  
@@ -60,39 +59,26 @@ pub fn create_new_console(cmd: &mut std::process::Command) -> Result<(), io::Err
     }
 }
 
-pub fn register_ctrlc_handler() -> Arc<AtomicBool> {
+pub fn register_ctrlc_handler(log_control: &crate::logger::LogControl) -> Arc<AtomicBool> {
     // Handle Ctrl+C by storing it in a shared boolean:
     let ctrl_c_pressed = Arc::new(AtomicBool::new(false));
     ctrlc::set_handler({
         let ctrl_c_pressed = ctrl_c_pressed.clone();
+        let log_control = log_control.clone();
         move || {
-            #[cfg(windows)]
-            println!("^C");
-            #[cfg(not(windows))]
-            println!();
+            // Don't print while the TUI owns the terminal:
+            if !log_control.is_tui_active() {
+                #[cfg(windows)]
+                println!("^C");
+                #[cfg(not(windows))]
+                println!();
+            }
             ctrl_c_pressed.store(true, Ordering::Relaxed);
         }
     })
     .expect("Error setting Ctrl+C handler");
 
     ctrl_c_pressed
-}
-
-pub fn setup_stdout_logger() -> Result<(), fern::InitError> {
-    fern::Dispatch::new()
-        .format(move |out, message, record| {
-            let message = match record.level() {
-                log::Level::Error => message.to_string().red(),
-                log::Level::Warn => message.to_string().yellow(),
-                log::Level::Info => message.to_string().into(),
-                log::Level::Debug => message.to_string().white(),
-                log::Level::Trace => message.to_string().white(),
-            };
-            out.finish(format_args!("{}", message))
-        })
-        .chain(std::io::stdout())
-        .apply()?;
-    Ok(())
 }
 
 /// Expands environment variables in given string like in a Unix shell.

@@ -8,7 +8,7 @@ This is useful for local development with multiple dependencies (e.g., web apps,
 ## Features
 - Run services sequentially from a TOML configuration.
 - Monitors and restarts services on exit (configurable with restart policy: "no", "on-failure", or "always").
-- Start, stop, and restart services dynamically while local-runner is already running.
+- Start, stop, and restart services dynamically while local-runner is already running (either through the TUI or via CLI args).
 - Define commands, working directories, environment variables, and more per service.
 - Resolves dependencies of services when defined and starts them in the correct order.
 - Redirects STDOUT/STDERR to log files named after each service.
@@ -79,11 +79,46 @@ Commands:
 Options:
   -p, --path <PATH>  path to config file with services to run [default: ./services.toml]
   -l, --logs <LOGS>  path to folder to write log files to [default: ./]
+      --no-tui       Disable the interactive TUI and print logs to stdout instead (the TUI is also disabled automatically when stdout is not a terminal)
   -h, --help         Print help
   -V, --version      Print version
 ```
 
 - If no `--path` is provided, it defaults to `./services.toml`
+
+### TUI
+If `local-runner` starts in an interactive shell, it will display a small TUI:
+
+```
+┌Logs──────────────────────────────────────────────────────────────────┐
+│Loading config from ./services.toml...                                │
+│Writing log files to ./                                               │
+│Resolving dependencies...                                             │
+│ >>> resolved: wait-blocking, should-be-killed, hello-world, good-bye │
+│Starting services...                                                  │
+│Press Ctrl+C to kill all processes                                    │
+│ >>> wait-blocking: starting                                          │
+│ >>> should-be-killed: starting                                       │
+│ >>> hello-world: starting                                            │
+│ >>> good-bye: starting                                               │
+│Monitoring services...                                                │
+│ >>> hello-world: exited (exit status: 0)                             │
+│ >>> good-bye: exited (exit status: 0)                                │
+└──────────────────────────────────────────────────────────────────────┘
+┌Command (start|stop|restart <service>, status, shutdown, quit)────────┐
+│>                                                                     │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+This makes it easy to start/stop services:
+
+- `start <SERVICE_OR_TAG>`: Start a service or tag. To start tags, prepend `@` to it, e.g: `start @my-tag`
+- `stop <SERVICE>`: Stop a service.
+- `restart <SERVICE>`: Restart a service.
+- `status`: Print the status of running/exited services.
+- `shutdown`/`quit`: Stops all running services and exits.
+
+You can opt out of the TUI by starting local-runner with the argument `--no-tui`.
 
 ## Configuration (TOML)
 

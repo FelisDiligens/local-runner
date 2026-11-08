@@ -41,6 +41,10 @@ pub struct Args {
     /// path to folder to write log files to
     #[arg(short, long, default_value_t = String::from("./"))]
     pub logs: String,
+    /// Disable the interactive TUI and print logs to stdout instead
+    /// (the TUI is also disabled automatically when stdout is not a terminal)
+    #[arg(long, default_value_t = false)]
+    pub no_tui: bool,
     #[command(subcommand)]
     pub command: Option<CommandArgs>,
 }
