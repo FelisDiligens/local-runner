@@ -50,6 +50,13 @@ struct App {
     /// Number of lines scrolled up from the bottom (0 = follow the tail).
     scroll: u16,
     lines: Vec<Line<'static>>,
+    /// Command history, kept in memory only for the lifetime of the process.
+    history: Vec<String>,
+    /// Position in `history` while navigating with Up/Down.
+    /// `None` means a fresh input line is being edited.
+    history_index: Option<usize>,
+    /// The in-progress input, stashed while navigating the history.
+    stashed_input: String,
 }
 
 impl App {
@@ -58,6 +65,49 @@ impl App {
             input: String::new(),
             scroll: 0,
             lines: Vec::new(),
+            history: Vec::new(),
+            history_index: None,
+            stashed_input: String::new(),
+        }
+    }
+
+    /// Records a submitted command in the history (skipping consecutive duplicates).
+    fn record_history(&mut self, command: &str) {
+        if self.history.last().map(String::as_str) != Some(command) {
+            self.history.push(command.to_string());
+        }
+        self.history_index = None;
+    }
+
+    /// Moves one entry back in the history (Up), stashing the in-progress input.
+    fn history_up(&mut self) {
+        if self.history.is_empty() {
+            return;
+        }
+        let index = match self.history_index {
+            None => {
+                self.stashed_input = self.input.clone();
+                self.history.len() - 1
+            }
+            Some(0) => return,
+            Some(i) => i - 1,
+        };
+        self.history_index = Some(index);
+        self.input = self.history[index].clone();
+    }
+
+    /// Moves one entry forward in the history (Down); past the newest entry
+    /// restores the stashed in-progress input.
+    fn history_down(&mut self) {
+        let Some(index) = self.history_index else {
+            return;
+        };
+        if index + 1 < self.history.len() {
+            self.history_index = Some(index + 1);
+            self.input = self.history[index + 1].clone();
+        } else {
+            self.history_index = None;
+            self.input = self.stashed_input.clone();
         }
     }
 
@@ -161,11 +211,14 @@ fn handle_key(app: &mut App, key: KeyEvent, worker: &Worker) -> bool {
         KeyCode::Enter => {
             let command = app.input.trim().to_string();
             app.input.clear();
+            app.stashed_input.clear();
             if matches!(command.as_str(), "quit" | "exit") {
+                app.record_history(&command);
                 worker.stop();
                 return true;
             }
             if !command.is_empty() {
+                app.record_history(&command);
                 dispatch_command(&command, worker);
             }
             false
@@ -178,12 +231,14 @@ fn handle_key(app: &mut App, key: KeyEvent, worker: &Worker) -> bool {
             app.input.push(c);
             false
         }
+        // Up/Down navigate the command history; the log view is scrolled
+        // with PageUp/PageDown/Home/End:
         KeyCode::Up => {
-            app.scroll = app.scroll.saturating_add(1);
+            app.history_up();
             false
         }
         KeyCode::Down => {
-            app.scroll = app.scroll.saturating_sub(1);
+            app.history_down();
             false
         }
         KeyCode::PageUp => {
