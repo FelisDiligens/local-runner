@@ -197,13 +197,25 @@ fn main() -> ExitCode {
 
     let ctrl_c_pressed = register_ctrlc_handler(&log_control);
 
+    let service_names: Vec<String> = config
+        .services
+        .iter()
+        .map(|service| service.name.clone())
+        .collect();
     let mut worker = Worker::spawn(config, args.clone());
     worker.queue(WorkerMessage::AutostartServices).unwrap();
 
     let use_tui = !args.no_tui && std::io::stdout().is_terminal();
     let mut tui_ran = false;
     if use_tui {
-        match tui::run(&worker, &args, &ctrl_c_pressed, &log_buffer, &log_control) {
+        match tui::run(
+            &worker,
+            &args,
+            &ctrl_c_pressed,
+            &log_buffer,
+            &log_control,
+            &service_names,
+        ) {
             Ok(()) => tui_ran = true,
             Err(e) => log::error!("Couldn't start TUI: {e}. Falling back to plain output."),
         }

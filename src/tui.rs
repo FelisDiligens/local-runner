@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::execute;
+use crossterm::style::Print;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
@@ -23,6 +24,11 @@ use crate::{dispatch_command, ipc};
 
 /// How often the TUI wakes up to poll IPC messages, drain the log buffer and redraw.
 const TICK_INTERVAL: Duration = Duration::from_millis(100);
+
+/// Command words that can be completed in the TUI input (tags are not completed).
+const COMMANDS: &[&str] = &[
+    "start", "stop", "restart", "status", "shutdown", "quit", "exit",
+];
 
 /// Restores the terminal to its previous state when dropped,
 /// even if the TUI loop panics.
@@ -57,10 +63,12 @@ struct App {
     history_index: Option<usize>,
     /// The in-progress input, stashed while navigating the history.
     stashed_input: String,
+    /// Service names from the config, used for tab completion.
+    services: Vec<String>,
 }
 
 impl App {
-    fn new() -> Self {
+    fn new(services: Vec<String>) -> Self {
         Self {
             input: String::new(),
             scroll: 0,
@@ -68,7 +76,18 @@ impl App {
             history: Vec::new(),
             history_index: None,
             stashed_input: String::new(),
+            services,
         }
+    }
+
+    /// Tab-completes the current input. Returns false when there is nothing
+    /// to complete (the caller rings the bell in that case).
+    fn tab_complete(&mut self) -> bool {
+        let Some(completed) = complete(&self.input, &self.services) else {
+            return false;
+        };
+        self.input = completed;
+        true
     }
 
     /// Records a submitted command in the history (skipping consecutive duplicates).
@@ -128,6 +147,73 @@ impl App {
     }
 }
 
+/// Completes `input` against commands and service names using the longest
+/// common prefix. Returns None when there is nothing to complete.
+/// Only the first two words are considered: the first word completes against
+/// `COMMANDS`, the second word against `services` (for start/stop/restart).
+pub(crate) fn complete(input: &str, services: &[String]) -> Option<String> {
+    match input.find(char::is_whitespace) {
+        None => complete_command(input),
+        Some(i) => complete_service(&input[..i], &input[i..], services),
+    }
+}
+
+/// Completes a command word. A unique match gets a trailing space so the
+/// user can directly type a service name.
+fn complete_command(word: &str) -> Option<String> {
+    let matches: Vec<&str> = COMMANDS
+        .iter()
+        .copied()
+        .filter(|c| c.starts_with(word))
+        .collect();
+    match matches.len() {
+        0 => None,
+        1 => Some(format!("{} ", matches[0])),
+        _ => {
+            let prefix = longest_common_prefix(&matches);
+            (prefix.len() > word.len()).then(|| prefix.to_string())
+        }
+    }
+}
+
+/// Completes the service name after start/stop/restart.
+fn complete_service(command: &str, rest: &str, services: &[String]) -> Option<String> {
+    if !matches!(command, "start" | "stop" | "restart") {
+        return None;
+    }
+    let ws_len = rest.len() - rest.trim_start().len();
+    let (ws, partial) = (&rest[..ws_len], &rest[ws_len..]);
+    let matches: Vec<&str> = services
+        .iter()
+        .map(String::as_str)
+        .filter(|s| s.starts_with(partial))
+        .collect();
+    match matches.len() {
+        0 => None,
+        1 => Some(format!("{command}{ws}{}", matches[0])),
+        _ => {
+            let prefix = longest_common_prefix(&matches);
+            (prefix.len() > partial.len()).then(|| format!("{command}{ws}{prefix}"))
+        }
+    }
+}
+
+fn longest_common_prefix<'a>(candidates: &[&'a str]) -> &'a str {
+    let first = candidates[0];
+    let mut len = first.len();
+    for candidate in &candidates[1..] {
+        let mut n = 0;
+        while n < len && n < candidate.len() && first.as_bytes()[n] == candidate.as_bytes()[n] {
+            n += 1;
+        }
+        len = n;
+    }
+    while !first.is_char_boundary(len) {
+        len -= 1;
+    }
+    &first[..len]
+}
+
 /// Runs the TUI on the current (main) thread until the worker stops or finishes.
 /// Returns Err only if the terminal couldn't be initialized.
 pub fn run(
@@ -136,6 +222,7 @@ pub fn run(
     ctrl_c_pressed: &Arc<AtomicBool>,
     log_buffer: &LogBuffer,
     log_control: &LogControl,
+    services: &[String],
 ) -> io::Result<()> {
     // Suppress stdout logging before entering raw mode, so no log line can be
     // written to the terminal in raw mode (where '\n' doesn't carriage-return).
@@ -147,7 +234,14 @@ pub fn run(
             return Err(e);
         }
     };
-    let result = run_loop(&mut terminal, worker, args, ctrl_c_pressed, log_buffer);
+    let result = run_loop(
+        &mut terminal,
+        worker,
+        args,
+        ctrl_c_pressed,
+        log_buffer,
+        services,
+    );
     log_control.set_tui_active(false);
     result
 }
@@ -158,8 +252,9 @@ fn run_loop(
     args: &Args,
     ctrl_c_pressed: &Arc<AtomicBool>,
     log_buffer: &LogBuffer,
+    services: &[String],
 ) -> io::Result<()> {
-    let mut app = App::new();
+    let mut app = App::new(services.to_vec());
     let mut ipc_errored = false;
     loop {
         if event::poll(TICK_INTERVAL)?
@@ -229,6 +324,13 @@ fn handle_key(app: &mut App, key: KeyEvent, worker: &Worker) -> bool {
         }
         KeyCode::Char(c) => {
             app.input.push(c);
+            false
+        }
+        KeyCode::Tab => {
+            if !app.tab_complete() {
+                // Ring the terminal bell when there is nothing to complete:
+                let _ = execute!(io::stdout(), Print("\x07"));
+            }
             false
         }
         // Up/Down navigate the command history; the log view is scrolled
