@@ -160,3 +160,84 @@ fn test_tab_complete_service_names() {
     // no matching service -> None (bell):
     assert_eq!(tui::complete("stop zzz", &services), None);
 }
+
+fn app_with(input: &str) -> tui::App {
+    let mut app = tui::App::new(vec![]);
+    app.input = input.to_string();
+    app.cursor = app.input.len();
+    app
+}
+
+#[test]
+fn test_cursor_left_right_and_home_end() {
+    let mut app = app_with("abc");
+    app.cursor_left();
+    assert_eq!(app.cursor, 2);
+    app.cursor_left();
+    app.cursor_left();
+    app.cursor_left(); // already at start
+    assert_eq!(app.cursor, 0);
+    app.cursor_home();
+    assert_eq!(app.cursor, 0);
+    app.cursor_end();
+    assert_eq!(app.cursor, 3);
+    app.cursor_right(); // already at end
+    assert_eq!(app.cursor, 3);
+}
+
+#[test]
+fn test_insert_and_backspace_at_cursor() {
+    let mut app = app_with("ac");
+    app.cursor_home();
+    app.insert_char('b');
+    assert_eq!(app.input, "bac");
+    assert_eq!(app.cursor, 1);
+    app.backspace();
+    assert_eq!(app.input, "ac");
+    assert_eq!(app.cursor, 0);
+    app.backspace(); // nothing before cursor
+    assert_eq!(app.input, "ac");
+    app.delete_char();
+    assert_eq!(app.input, "c");
+}
+
+#[test]
+fn test_word_movement() {
+    let mut app = app_with("start hello-world");
+    app.word_left();
+    assert_eq!(&app.input[..app.cursor], "start ");
+    app.word_left();
+    assert_eq!(app.cursor, 0);
+    app.word_right();
+    assert_eq!(&app.input[..app.cursor], "start");
+    app.word_right();
+    assert_eq!(&app.input[..app.cursor], "start hello-world");
+}
+
+#[test]
+fn test_delete_word_back_and_delete_to_start() {
+    let mut app = app_with("start hello-world");
+    app.delete_word_back();
+    assert_eq!(app.input, "start ");
+    assert_eq!(app.cursor, 6);
+    app.delete_word_back();
+    assert_eq!(app.input, "");
+    app.input = "abc def".to_string();
+    app.cursor = 4; // after "abc " (the space is byte 3)
+    app.delete_to_start();
+    assert_eq!(app.input, "def");
+    assert_eq!(app.cursor, 0);
+}
+
+#[test]
+fn test_cursor_multibyte_char_boundaries() {
+    let mut app = app_with("héllo"); // é is 2 bytes
+    app.cursor_left();
+    assert_eq!(app.cursor, "héllo".len() - 1);
+    app.cursor_left();
+    assert_eq!(&app.input[..app.cursor], "hél");
+    app.insert_char('x');
+    assert_eq!(app.input, "hélxlo");
+    app.backspace();
+    assert_eq!(app.input, "héllo");
+}

@@ -51,8 +51,8 @@ impl Drop for TerminalGuard {
     }
 }
 
-struct App {
-    input: String,
+pub(crate) struct App {
+    pub(crate) input: String,
     /// Number of lines scrolled up from the bottom (0 = follow the tail).
     scroll: u16,
     lines: Vec<Line<'static>>,
@@ -65,10 +65,12 @@ struct App {
     stashed_input: String,
     /// Service names from the config, used for tab completion.
     services: Vec<String>,
+    /// Cursor position in `input` as a byte offset, always on a char boundary.
+    pub(crate) cursor: usize,
 }
 
 impl App {
-    fn new(services: Vec<String>) -> Self {
+    pub(crate) fn new(services: Vec<String>) -> Self {
         Self {
             input: String::new(),
             scroll: 0,
@@ -77,6 +79,7 @@ impl App {
             history_index: None,
             stashed_input: String::new(),
             services,
+            cursor: 0,
         }
     }
 
@@ -87,7 +90,138 @@ impl App {
             return false;
         };
         self.input = completed;
+        self.cursor = self.input.len();
         true
+    }
+
+    /// Clears the input line and resets the cursor.
+    fn clear_input(&mut self) {
+        self.input.clear();
+        self.cursor = 0;
+    }
+
+    /// Inserts a character at the cursor.
+    pub(crate) fn insert_char(&mut self, c: char) {
+        self.input.insert(self.cursor, c);
+        self.cursor += c.len_utf8();
+    }
+
+    /// Deletes the character before the cursor (Backspace).
+    pub(crate) fn backspace(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+        let prev = self.prev_char_boundary(self.cursor);
+        self.input.drain(prev..self.cursor);
+        self.cursor = prev;
+    }
+
+    /// Deletes the character at the cursor (Delete).
+    pub(crate) fn delete_char(&mut self) {
+        if self.cursor < self.input.len() {
+            let next = self.next_char_boundary(self.cursor);
+            self.input.drain(self.cursor..next);
+        }
+    }
+
+    /// Deletes everything before the cursor (Ctrl+U).
+    pub(crate) fn delete_to_start(&mut self) {
+        self.input.drain(..self.cursor);
+        self.cursor = 0;
+    }
+
+    /// Deletes the word before the cursor (Ctrl+W, Ctrl/Alt+Backspace).
+    pub(crate) fn delete_word_back(&mut self) {
+        let old_cursor = self.cursor;
+        self.word_left();
+        self.input.drain(self.cursor..old_cursor);
+    }
+
+    pub(crate) fn cursor_left(&mut self) {
+        if self.cursor > 0 {
+            self.cursor = self.prev_char_boundary(self.cursor);
+        }
+    }
+
+    pub(crate) fn cursor_right(&mut self) {
+        if self.cursor < self.input.len() {
+            self.cursor = self.next_char_boundary(self.cursor);
+        }
+    }
+
+    pub(crate) fn cursor_home(&mut self) {
+        self.cursor = 0;
+    }
+
+    pub(crate) fn cursor_end(&mut self) {
+        self.cursor = self.input.len();
+    }
+
+    /// Moves the cursor to the start of the current or previous word (Alt+B, Ctrl+Left).
+    pub(crate) fn word_left(&mut self) {
+        let mut chars: Vec<(usize, char)> = self
+            .input
+            .char_indices()
+            .take_while(|(i, _)| *i < self.cursor)
+            .collect();
+        while let Some(&(_, c)) = chars.last() {
+            if c.is_whitespace() {
+                chars.pop();
+            } else {
+                break;
+            }
+        }
+        while let Some(&(_, c)) = chars.last() {
+            if !c.is_whitespace() {
+                chars.pop();
+            } else {
+                break;
+            }
+        }
+        self.cursor = chars
+            .last()
+            .map(|(i, c)| i + c.len_utf8())
+            .unwrap_or(0);
+    }
+
+    /// Moves the cursor to the end of the next word (Alt+F, Ctrl+Right).
+    pub(crate) fn word_right(&mut self) {
+        let after: Vec<(usize, char)> = self
+            .input
+            .char_indices()
+            .filter(|(i, _)| *i >= self.cursor)
+            .collect();
+        if after.is_empty() {
+            return;
+        }
+        let mut idx = 0;
+        while idx < after.len() && after[idx].1.is_whitespace() {
+            idx += 1;
+        }
+        while idx < after.len() && !after[idx].1.is_whitespace() {
+            idx += 1;
+        }
+        self.cursor = if idx > 0 {
+            after[idx - 1].0 + after[idx - 1].1.len_utf8()
+        } else {
+            self.input.len()
+        };
+    }
+
+    fn prev_char_boundary(&self, mut i: usize) -> usize {
+        i -= 1;
+        while i > 0 && !self.input.is_char_boundary(i) {
+            i -= 1;
+        }
+        i
+    }
+
+    fn next_char_boundary(&self, mut i: usize) -> usize {
+        i += 1;
+        while i < self.input.len() && !self.input.is_char_boundary(i) {
+            i += 1;
+        }
+        i
     }
 
     /// Records a submitted command in the history (skipping consecutive duplicates).
@@ -113,6 +247,7 @@ impl App {
         };
         self.history_index = Some(index);
         self.input = self.history[index].clone();
+        self.cursor = self.input.len();
     }
 
     /// Moves one entry forward in the history (Down); past the newest entry
@@ -128,6 +263,7 @@ impl App {
             self.history_index = None;
             self.input = self.stashed_input.clone();
         }
+        self.cursor = self.input.len();
     }
 
     fn push_line(&mut self, level: log::Level, message: String) {
@@ -297,15 +433,17 @@ fn run_loop(
 
 /// Handles a key press. Returns true when the TUI should quit.
 fn handle_key(app: &mut App, key: KeyEvent, worker: &Worker) -> bool {
+    let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+    let alt = key.modifiers.contains(KeyModifiers::ALT);
     match key.code {
         // In raw mode Ctrl+C arrives as a key event instead of SIGINT:
-        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+        KeyCode::Char('c') if ctrl => {
             worker.stop();
             true
         }
         KeyCode::Enter => {
             let command = app.input.trim().to_string();
-            app.input.clear();
+            app.clear_input();
             app.stashed_input.clear();
             if matches!(command.as_str(), "quit" | "exit") {
                 app.record_history(&command);
@@ -318,19 +456,76 @@ fn handle_key(app: &mut App, key: KeyEvent, worker: &Worker) -> bool {
             }
             false
         }
-        KeyCode::Backspace => {
-            app.input.pop();
-            false
-        }
-        KeyCode::Char(c) => {
-            app.input.push(c);
-            false
-        }
         KeyCode::Tab => {
             if !app.tab_complete() {
                 // Ring the terminal bell when there is nothing to complete:
                 let _ = execute!(io::stdout(), Print("\x07"));
             }
+            false
+        }
+        // Cursor movement and line editing (readline-style):
+        KeyCode::Left if ctrl || alt => {
+            app.word_left();
+            false
+        }
+        KeyCode::Right if ctrl || alt => {
+            app.word_right();
+            false
+        }
+        KeyCode::Left => {
+            app.cursor_left();
+            false
+        }
+        KeyCode::Right => {
+            app.cursor_right();
+            false
+        }
+        KeyCode::Backspace if ctrl || alt => {
+            app.delete_word_back();
+            false
+        }
+        KeyCode::Backspace => {
+            app.backspace();
+            false
+        }
+        KeyCode::Delete => {
+            app.delete_char();
+            false
+        }
+        KeyCode::Char('b') if ctrl => {
+            app.cursor_left();
+            false
+        }
+        KeyCode::Char('f') if ctrl => {
+            app.cursor_right();
+            false
+        }
+        KeyCode::Char('a') if ctrl => {
+            app.cursor_home();
+            false
+        }
+        KeyCode::Char('e') if ctrl => {
+            app.cursor_end();
+            false
+        }
+        KeyCode::Char('w') if ctrl => {
+            app.delete_word_back();
+            false
+        }
+        KeyCode::Char('u') if ctrl => {
+            app.delete_to_start();
+            false
+        }
+        KeyCode::Char('b') if alt => {
+            app.word_left();
+            false
+        }
+        KeyCode::Char('f') if alt => {
+            app.word_right();
+            false
+        }
+        KeyCode::Char(c) => {
+            app.insert_char(c);
             false
         }
         // Up/Down navigate the command history; the log view is scrolled
@@ -390,6 +585,6 @@ fn draw(frame: &mut Frame, app: &App) {
     let cursor_x = input_area.x
         + 1 // left border
         + 2 // "> " prefix
-        + (app.input.chars().count() as u16).min(inner_width.saturating_sub(1));
+        + (app.input[..app.cursor].chars().count() as u16).min(inner_width.saturating_sub(1));
     frame.set_cursor_position((cursor_x, input_area.y + 1));
 }
