@@ -69,7 +69,7 @@ fn collect_dependency_set(
 /// A vector of services in dependency order, or an error.
 pub fn resolve_dependencies(
     start_names: Vec<String>,
-    services: &Vec<Service>,
+    services: &[Service],
 ) -> Result<Vec<Service>, DependencyError> {
     // Turn service list into a look-up map:
     let service_map: IndexMap<String, Service> = services

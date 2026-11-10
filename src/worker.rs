@@ -102,7 +102,7 @@ fn run_loop(
             Ok(message) => {
                 if let Err(e) = process_message(message, &mut state) {
                     kill_processes(&mut state)?;
-                    return Err(e.into());
+                    return Err(e);
                 }
             }
             Err(TryRecvError::Disconnected) => {
@@ -113,7 +113,7 @@ fn run_loop(
         }
         if let Err(e) = monitor_processes(&mut state) {
             kill_processes(&mut state)?;
-            return Err(e.into());
+            return Err(e);
         }
         if state.stopped.load(Ordering::Relaxed) {
             kill_processes(&mut state)?;
@@ -407,7 +407,7 @@ fn start_tag(state: &mut WorkerState, tag_name: String) -> Result<(), WorkerErro
         tag_name,
         service_names
             .iter()
-            .map(|service_name| service_name.clone())
+            .cloned()
             .reduce(|acc, s| format!("{acc}, {s}"))
             .unwrap()
     );
